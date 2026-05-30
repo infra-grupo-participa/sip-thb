@@ -21,6 +21,7 @@ import { sessionRouter } from './routes/session.js';
 import { studentRouter } from './routes/student.js';
 import { studentWriteRouter } from './routes/studentWrite.js';
 import { contentRouter } from './routes/content.js';
+import { studentExtraRouter } from './routes/studentExtra.js';
 
 const app = express();
 
@@ -48,6 +49,7 @@ app.use('/api', sessionRouter); // GET /api/me
 app.use('/api', studentRouter); // /api/my-progress, /api/me/* (leitura — Fase 2)
 app.use('/api', studentWriteRouter); // escritas do aluno (Fase 3)
 app.use('/api', contentRouter); // posts/tráfego (Fase 3b)
+app.use('/api', studentExtraRouter); // sessão, SDB, onboarding, raiox, convite (Fase 3c)
 
 // 404 de API (antes do fallback do SPA, para /api/* nunca cair no index.html).
 app.use('/api', (_req, res) => {
