@@ -10,7 +10,25 @@ export const healthRouter = Router();
 
 // Marcador de build — confirma QUAL deploy está servindo. Bump a cada deploy
 // de diagnóstico.
-const BUILD = 'keyrole-1';
+const BUILD = 'projref-1';
+
+// Ref do projeto Supabase a partir da URL (https://<ref>.supabase.co).
+function urlRef(): string {
+  const m = env.SUPABASE_URL.match(/https?:\/\/([a-z0-9]+)\.supabase\.co/i);
+  return m ? m[1]! : env.SUPABASE_URL || 'none';
+}
+// Ref embutido na chave service_role (claim ref do JWT).
+function keyRef(): string {
+  const parts = env.SUPABASE_SERVICE_ROLE_KEY.split('.');
+  if (parts.length === 3) {
+    try {
+      return String(JSON.parse(Buffer.from(parts[1]!, 'base64').toString('utf8')).ref ?? '?');
+    } catch {
+      return 'jwt-invalido';
+    }
+  }
+  return 'n/a';
+}
 
 // Decodifica o "role" da chave Supabase (sem expor o segredo). Chaves legadas
 // são JWT com claim role (anon|service_role); chaves novas começam com
@@ -51,18 +69,21 @@ healthRouter.get('/health', async (_req, res) => {
     jwt_configured: hasJwt,
     jwt_fingerprint: jwtFingerprint(),
     supabase_key_role: supabaseKeyRole(),
+    url_ref: urlRef(),
+    key_ref: keyRef(),
     pid: process.pid,
     config_errors: CONFIG_ERRORS,
   };
 
   if (hasDb) {
     try {
-      // Conta usuários que o servidor consegue LER. Se vier 0 (com role anon),
-      // é RLS bloqueando = chave errada. Com service_role, vê todos.
-      const { count, error } = await sip().from('users').select('id', { count: 'exact', head: true });
-      out.db = error ? 'erro' : 'ok';
-      out.db_users_visible = count ?? 0;
-      if (error) out.db_error = error.message;
+      const usersRes = await sip().from('users').select('id', { count: 'exact', head: true });
+      const ciclosRes = await sip().from('ciclos').select('id', { count: 'exact', head: true });
+      out.db = usersRes.error ? 'erro' : 'ok';
+      out.db_users_visible = usersRes.count ?? 0;
+      out.db_ciclos_visible = ciclosRes.count ?? 0;
+      if (usersRes.error) out.db_error = usersRes.error.message;
+      else if (ciclosRes.error) out.db_error = ciclosRes.error.message;
     } catch (e) {
       out.db = 'erro';
       out.db_error = (e as Error).message;
