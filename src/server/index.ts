@@ -5,7 +5,7 @@ import express from 'express';
 import cors from 'cors';
 import path from 'node:path';
 import fs from 'node:fs';
-import { env, hasDb } from './env.js';
+import { env, hasDb, CONFIG_ERRORS } from './env.js';
 import { requireAuth } from './middleware/requireAuth.js';
 import { errorHandler } from './middleware/errorHandler.js';
 import { healthRouter } from './routes/health.js';
@@ -67,8 +67,22 @@ if (fs.existsSync(indexHtml)) {
 // Error handler global (500 padronizado).
 app.use(errorHandler);
 
-app.listen(env.PORT, () => {
-  console.log(`[sip] server on :${env.PORT} (${env.NODE_ENV}) — db: ${hasDb ? 'configurado' : 'NÃO configurado'}`);
-});
+if (CONFIG_ERRORS.length > 0) {
+  console.error('[sip] AVISO de configuração (app sobe mesmo assim):');
+  for (const e of CONFIG_ERRORS) console.error('  - ' + e);
+}
+
+app
+  .listen(env.PORT, () => {
+    console.log(
+      `[sip] server on :${env.PORT} (${env.NODE_ENV}) — db: ${hasDb ? 'ok' : 'NÃO configurado'}, config: ${
+        CONFIG_ERRORS.length === 0 ? 'ok' : CONFIG_ERRORS.length + ' problema(s)'
+      }`,
+    );
+  })
+  .on('error', (err) => {
+    console.error('[sip] falha ao escutar na porta', env.PORT, err);
+    process.exit(1);
+  });
 
 export { app };

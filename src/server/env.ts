@@ -1,40 +1,36 @@
-// Config + boot-guard (espelha os Deno.env.get do as-is, doc 08 §3A.2).
+// Config + diagnóstico de boot.
 //
-// Regra preservada: o server RECUSA subir se SIP_JWT_SECRET faltar ou tiver
-// < 32 chars (as Edge Functions atuais fazem o mesmo). As vars de banco são
-// obrigatórias em produção; em dev emitimos aviso e o cliente Supabase só
-// falha se for efetivamente usado sem config (ver db.ts) — isso permite o
-// primeiro smoke-test na Hostinger (servir o SPA + /api/health) antes de
-// fiar todas as integrações.
+// IMPORTANTE (decisão de operação): o boot NÃO derruba mais o processo quando
+// falta env. Antes lançávamos exceção (o que, na Hostinger/Passenger, causa
+// 503 e o site some). Agora o servidor SEMPRE sobe e serve o SPA; problemas de
+// configuração ficam em `CONFIG_ERRORS` e são expostos em /api/health.
+// Operações que dependem de um segredo ausente falham de forma controlada
+// (ex.: login → 503 JSON), sem matar a aplicação inteira.
 
 const isProd = process.env.NODE_ENV === 'production';
 
-function req(name: string): string {
-  const v = process.env[name];
-  if (!v) throw new Error(`Env ${name} ausente — recuse boot.`);
-  return v;
+const configErrors: string[] = [];
+
+const SIP_JWT_SECRET = process.env.SIP_JWT_SECRET ?? '';
+if (!SIP_JWT_SECRET) {
+  configErrors.push('SIP_JWT_SECRET ausente (login/JWT indisponíveis).');
+} else if (SIP_JWT_SECRET.length < 32) {
+  configErrors.push('SIP_JWT_SECRET com menos de 32 caracteres.');
 }
 
-function prodReq(name: string): string {
-  const v = process.env[name] ?? '';
-  if (isProd && !v) throw new Error(`Env ${name} ausente em produção — recuse boot.`);
-  if (!isProd && !v) console.warn(`[env] ${name} não definida (ok em dev; obrigatória em produção).`);
-  return v;
-}
-
-const JWT_SECRET = req('SIP_JWT_SECRET');
-if (JWT_SECRET.length < 32) {
-  throw new Error('SIP_JWT_SECRET com menos de 32 caracteres — recuse boot.');
-}
+const SUPABASE_URL = process.env.SUPABASE_URL ?? '';
+const SUPABASE_SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY ?? '';
+if (!SUPABASE_URL) configErrors.push('SUPABASE_URL ausente (banco indisponível).');
+if (!SUPABASE_SERVICE_ROLE_KEY) configErrors.push('SUPABASE_SERVICE_ROLE_KEY ausente (banco indisponível).');
 
 export const env = {
   NODE_ENV: process.env.NODE_ENV ?? 'development',
   IS_PROD: isProd,
   PORT: Number(process.env.PORT ?? 3000),
 
-  SIP_JWT_SECRET: JWT_SECRET,
-  SUPABASE_URL: prodReq('SUPABASE_URL'),
-  SUPABASE_SERVICE_ROLE_KEY: prodReq('SUPABASE_SERVICE_ROLE_KEY'),
+  SIP_JWT_SECRET,
+  SUPABASE_URL,
+  SUPABASE_SERVICE_ROLE_KEY,
 
   // Integrações — necessárias só quando o respectivo serviço for ligado.
   CLICKUP_TOKEN: process.env.CLICKUP_TOKEN ?? '',
@@ -48,3 +44,5 @@ export const env = {
 } as const;
 
 export const hasDb = Boolean(env.SUPABASE_URL && env.SUPABASE_SERVICE_ROLE_KEY);
+export const hasJwt = Boolean(env.SIP_JWT_SECRET && env.SIP_JWT_SECRET.length >= 32);
+export const CONFIG_ERRORS = configErrors;

@@ -2,7 +2,7 @@
 // confirma que o processo Node subiu, o boot-guard passou e (opcionalmente)
 // que o banco responde.
 import { Router } from 'express';
-import { hasDb, env } from '../env.js';
+import { hasDb, hasJwt, env, CONFIG_ERRORS } from '../env.js';
 import { sip } from '../db.js';
 
 export const healthRouter = Router();
@@ -13,6 +13,8 @@ healthRouter.get('/health', async (_req, res) => {
     service: 'sip-server',
     env: env.NODE_ENV,
     db_configured: hasDb,
+    jwt_configured: hasJwt,
+    config_errors: CONFIG_ERRORS,
   };
 
   if (hasDb) {
