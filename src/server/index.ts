@@ -1,6 +1,12 @@
 // Bootstrap do servidor SIP (doc 08 §3A.8).
-// Em produção o Express serve o build do React (packages/web/dist) e a API
-// no MESMO host/porta — sem CORS cross-origin e com VITE_API_URL = /api.
+// Em produção o Express serve o build do React (dist/web) e a API no MESMO
+// host/porta — sem CORS cross-origin e com VITE_API_URL = /api.
+//
+// Carrega .env (se existir no app root) ANTES de qualquer leitura de env.
+// Útil na Hostinger: basta colocar um .env no servidor (Gerenciador de
+// Arquivos/SSH) sem precisar do painel de variáveis. process.env do painel
+// continua tendo prioridade (dotenv não sobrescreve var já definida).
+import 'dotenv/config';
 import express from 'express';
 import cors from 'cors';
 import path from 'node:path';
@@ -14,6 +20,7 @@ import { authRouter } from './routes/auth.js';
 import { sessionRouter } from './routes/session.js';
 import { studentRouter } from './routes/student.js';
 import { studentWriteRouter } from './routes/studentWrite.js';
+import { contentRouter } from './routes/content.js';
 
 const app = express();
 
@@ -40,6 +47,7 @@ app.use('/api', requireAuth);
 app.use('/api', sessionRouter); // GET /api/me
 app.use('/api', studentRouter); // /api/my-progress, /api/me/* (leitura — Fase 2)
 app.use('/api', studentWriteRouter); // escritas do aluno (Fase 3)
+app.use('/api', contentRouter); // posts/tráfego (Fase 3b)
 
 // 404 de API (antes do fallback do SPA, para /api/* nunca cair no index.html).
 app.use('/api', (_req, res) => {

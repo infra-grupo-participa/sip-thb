@@ -1,7 +1,6 @@
 import { useQuery } from '@tanstack/react-query';
 import { sipApi } from '../../lib/api';
 import { useSession, logout } from '../../lib/auth';
-import { ThemeProvider } from '../../design/ThemeProvider';
 import Dashboard from '../student/Dashboard';
 
 interface Health {
@@ -46,15 +45,5 @@ function StaffPanel() {
 
 export default function Home() {
   const { data: user } = useSession();
-  return (
-    <ThemeProvider user={user ?? null}>
-      <div className="topbar">
-        <strong>SIP</strong>
-        <button className="link-btn" onClick={logout}>
-          Sair
-        </button>
-      </div>
-      {user?.role === 'student' ? <Dashboard /> : <StaffPanel />}
-    </ThemeProvider>
-  );
+  return user?.role === 'student' ? <Dashboard /> : <StaffPanel />;
 }

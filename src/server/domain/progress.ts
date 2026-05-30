@@ -1,6 +1,7 @@
 // Domínio: progresso/taskline materializado — porte de handlers/_shared.ts
 // (buildProgress, buildMilestones, templates). Usa o accessor sip().
 import { sip } from '../db.js';
+import { resolveTaskline } from './taskline.js';
 import {
   buildSchedule,
   type CicloTemplate,
@@ -159,4 +160,97 @@ export async function buildProgress(
     allTasks: allTasks || [],
     stagesRaw: stages || [],
   };
+}
+
+// ── checkAutoComplete (porte de _shared.ts) ─────────────────────────────────
+// Auto-completa tarefas com auto_trigger satisfeito (posts/traffic/debriefing).
+export async function checkAutoComplete(
+  userId: string,
+  cicloType: string,
+  triggerType: string,
+): Promise<Array<{ task_id: string; title: string; stage_number: number }>> {
+  const taskline = await resolveTaskline({ id: userId, ciclo_type: cicloType });
+  const { data: tasks } = await sip()
+    .from('tasks')
+    .select('id, stage_id, stage_number, title, auto_trigger')
+    .eq('ciclo_type', cicloType)
+    .eq('taskline', taskline)
+    .eq('active', true)
+    .not('auto_trigger', 'is', null);
+
+  const triggered = (tasks || []).filter(
+    (t: { auto_trigger: { type: string } }) => t.auto_trigger?.type === triggerType,
+  );
+  if (triggered.length === 0) return [];
+
+  const taskIds = triggered.map((t: { id: string }) => t.id);
+  const { data: progressRows } = await sip()
+    .from('progress')
+    .select('id, task_id, completed')
+    .eq('user_id', userId)
+    .in('task_id', taskIds);
+  const progressByTask = new Map<string, { id: string; completed: boolean }>();
+  for (const p of progressRows || []) progressByTask.set(p.task_id, p);
+
+  const candidates = triggered.filter((t: { id: string }) => !progressByTask.get(t.id)?.completed);
+  if (candidates.length === 0) return [];
+
+  let trafficRows: Array<{ date: string }> | null = null;
+  let postsRows: Array<{ date: string; platform: string }> | null = null;
+  let debriefingExists = false;
+  if (triggerType === 'traffic') {
+    const { data } = await sip().from('traffic').select('date').eq('user_id', userId);
+    trafficRows = data || [];
+  } else if (triggerType === 'posts') {
+    const { data } = await sip().from('posts').select('date, platform').eq('user_id', userId);
+    postsRows = data || [];
+  } else if (triggerType === 'debriefing') {
+    const { data } = await sip().from('debriefings').select('id').eq('user_id', userId).maybeSingle();
+    debriefingExists = !!data;
+  }
+
+  const prog = await buildProgress(userId, cicloType, taskline);
+  const stageById = new Map<string, { unlocked: boolean }>();
+  for (const s of prog.stages) stageById.set(s.id, s);
+
+  const completed: Array<{ task_id: string; title: string; stage_number: number }> = [];
+  const toUpdate: string[] = [];
+  const toInsert: Array<Record<string, unknown>> = [];
+  const nowIso = new Date().toISOString();
+
+  for (const task of candidates) {
+    const cond = task.auto_trigger.condition;
+    let satisfied = false;
+    if (triggerType === 'traffic' && trafficRows) {
+      const count = cond.days_range
+        ? trafficRows.filter((r) => (Date.now() - new Date(r.date).getTime()) / 86400000 <= cond.days_range).length
+        : trafficRows.length;
+      satisfied = count >= cond.min_count;
+    } else if (triggerType === 'posts' && postsRows) {
+      const filtered = cond.platform ? postsRows.filter((p) => p.platform === cond.platform) : postsRows;
+      if (cond.days_range) {
+        const since = new Date(Date.now() - cond.days_range * 86400000).toISOString().split('T')[0]!;
+        satisfied = filtered.filter((p) => p.date >= since).length >= cond.min_count;
+      } else {
+        satisfied = filtered.length >= cond.min_count;
+      }
+    } else if (triggerType === 'debriefing') {
+      satisfied = debriefingExists;
+    }
+    if (!satisfied) continue;
+    if (!stageById.get(task.stage_id)?.unlocked) continue;
+
+    const existing = progressByTask.get(task.id);
+    if (existing) toUpdate.push(existing.id);
+    else toInsert.push({ user_id: userId, task_id: task.id, completed: true, completed_at: nowIso, auto_completed: true });
+    completed.push({ task_id: task.id, title: task.title, stage_number: task.stage_number });
+  }
+
+  if (toUpdate.length > 0) {
+    await sip().from('progress').update({ completed: true, completed_at: nowIso, auto_completed: true }).in('id', toUpdate);
+  }
+  if (toInsert.length > 0) {
+    await sip().from('progress').insert(toInsert);
+  }
+  return completed;
 }
