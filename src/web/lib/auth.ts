@@ -62,7 +62,11 @@ export function useLogin() {
     },
     onSuccess: (res) => {
       setToken(res.token);
+      // Valida o token contra /me (em vez de confiar só no payload do login).
+      // Se o token for rejeitado (ex.: SIP_JWT_SECRET divergente), o guard
+      // redireciona pro login limpo em vez de "Sessão expirada" no painel.
       qc.setQueryData(['session'], res.user);
+      qc.invalidateQueries({ queryKey: ['session'] });
     },
   });
 }

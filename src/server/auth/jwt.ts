@@ -24,10 +24,13 @@ export function makeJwt(payload: Omit<SipClaims, 'iat' | 'exp'>): string {
 }
 
 // Assinatura inválida/expirada → null (não lança pro caller).
+// Loga o motivo (invalid signature = SIP_JWT_SECRET divergente; jwt expired =
+// token vencido) para diagnóstico via logs do servidor.
 export function verifyJwt(token: string): SipClaims | null {
   try {
     return jwt.verify(token, env.SIP_JWT_SECRET, { algorithms: ['HS256'] }) as SipClaims;
-  } catch {
+  } catch (e) {
+    console.warn('[jwt] verificação falhou:', (e as Error).name, '-', (e as Error).message);
     return null;
   }
 }
