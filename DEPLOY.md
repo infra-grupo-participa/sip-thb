@@ -29,19 +29,22 @@ A autodetecção deve identificar **Express / Node.js**. Confira/ajuste:
 | Campo | Valor |
 |-------|-------|
 | Framework preset | **Express** (Node.js). Se detectar "Vite/React", troque o preset para Express/Node.js. |
-| Node.js version | 20.x (ou superior) |
+| Node.js version | 20.6+ (o ambiente usa Node 24 — ok) |
 | Install command | `npm install` |
 | Build command | `npm run build` |
 | Start command | `npm start` |
-| Entry / startup file | `dist/server/index.js` |
+| Entry File / Output Directory | **DEIXE EM BRANCO** |
 
-> `npm run build` gera `dist/web` (Vite) **e** `dist/server` (tsc). O `npm start`
-> roda `node dist/server/index.js`, que serve o SPA + a API. A porta vem de
+> ⚠️ O preset **Express NÃO suporta "Entry File"** nem "Output Directory" — esses
+> campos são ignorados e, se preenchidos, atrapalham o deploy. O start vem do
+> `package.json` (`npm start` → `node dist/server/index.js`).
+>
+> `npm run build` gera `dist/web` (Vite) **e** `dist/server` (tsc). A porta vem de
 > `process.env.PORT` (injetada pela Hostinger) — não fixe porta.
 >
-> Se o build falhar por `vite`/`tsc` "not found", o ambiente instalou só
-> dependências de produção: defina o Install command como
-> `npm install --include=dev` (as ferramentas de build ficam em devDependencies).
+> As ferramentas de build (`vite`, `typescript`, React) ficam em **dependencies**
+> (não devDependencies) de propósito: a Hostinger instala com `NODE_ENV=production`
+> e pularia devDeps, quebrando o build com `vite: command not found`.
 
 ## 4. Variáveis de ambiente (painel do app)
 
