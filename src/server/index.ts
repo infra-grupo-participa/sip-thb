@@ -13,6 +13,7 @@ import path from 'node:path';
 import fs from 'node:fs';
 import { env, hasDb, CONFIG_ERRORS } from './env.js';
 import { requireAuth } from './middleware/requireAuth.js';
+import { adminGate } from './middleware/roleGate.js';
 import { errorHandler } from './middleware/errorHandler.js';
 import { healthRouter } from './routes/health.js';
 import { publicRouter } from './routes/public.js';
@@ -22,6 +23,7 @@ import { studentRouter } from './routes/student.js';
 import { studentWriteRouter } from './routes/studentWrite.js';
 import { contentRouter } from './routes/content.js';
 import { studentExtraRouter } from './routes/studentExtra.js';
+import { adminRouter } from './routes/admin.js';
 
 const app = express();
 
@@ -50,6 +52,10 @@ app.use('/api', studentRouter); // /api/my-progress, /api/me/* (leitura — Fase
 app.use('/api', studentWriteRouter); // escritas do aluno (Fase 3)
 app.use('/api', contentRouter); // posts/tráfego (Fase 3b)
 app.use('/api', studentExtraRouter); // sessão, SDB, onboarding, raiox, convite (Fase 3c)
+
+// Gate de role admin antes do router admin (auditoria 2026-05-19).
+app.use('/api/admin', adminGate);
+app.use('/api', adminRouter); // admin: dashboard, aprovações, monitores, settings, ciclos, roster (Fase 4)
 
 // 404 de API (antes do fallback do SPA, para /api/* nunca cair no index.html).
 app.use('/api', (_req, res) => {

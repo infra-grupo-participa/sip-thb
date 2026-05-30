@@ -2,6 +2,7 @@ import { useQuery } from '@tanstack/react-query';
 import { sipApi } from '../../lib/api';
 import { useSession, logout } from '../../lib/auth';
 import Dashboard from '../student/Dashboard';
+import AdminShell from '../admin/AdminShell';
 
 interface Health {
   ok: boolean;
@@ -45,5 +46,7 @@ function StaffPanel() {
 
 export default function Home() {
   const { data: user } = useSession();
-  return user?.role === 'student' ? <Dashboard /> : <StaffPanel />;
+  if (user?.role === 'student') return <Dashboard />;
+  if (user?.role === 'admin') return <AdminShell />;
+  return <StaffPanel />;
 }
