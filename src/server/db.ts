@@ -9,13 +9,17 @@
 // tentar usar o banco. Em produção, env.ts já exige as vars no boot.
 import { createClient, type SupabaseClient } from '@supabase/supabase-js';
 import { env, hasDb } from './env.js';
+import { AppError } from './http.js';
 
 let _db: SupabaseClient | null = null;
 
 export function db(): SupabaseClient {
   if (!hasDb) {
-    throw new Error(
-      'Banco não configurado: defina SUPABASE_URL e SUPABASE_SERVICE_ROLE_KEY.',
+    // AppError 503 → o errorHandler devolve esta mensagem (em vez de "Erro
+    // interno" genérico), deixando claro no /login o que falta configurar.
+    throw new AppError(
+      503,
+      'Banco de dados não configurado no servidor. Defina SUPABASE_URL e SUPABASE_SERVICE_ROLE_KEY no painel e reinicie.',
     );
   }
   if (!_db) {
