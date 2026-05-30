@@ -6,11 +6,17 @@ import cors from 'cors';
 import path from 'node:path';
 import fs from 'node:fs';
 import { env, hasDb } from './env.js';
+import { requireAuth } from './middleware/requireAuth.js';
 import { errorHandler } from './middleware/errorHandler.js';
 import { healthRouter } from './routes/health.js';
 import { publicRouter } from './routes/public.js';
+import { authRouter } from './routes/auth.js';
+import { sessionRouter } from './routes/session.js';
 
 const app = express();
+
+// Atrás do proxy da Hostinger — habilita req.ip / x-forwarded-for corretos.
+app.set('trust proxy', true);
 
 // CORS — mesma config do as-is (origin *, headers/métodos idênticos).
 app.use(
@@ -22,11 +28,14 @@ app.use(
 );
 app.use(express.json({ limit: '256kb' }));
 
-// ── Rotas públicas da fundação (sem Bearer) ─────────────────────────────────
-// Os routers autenticados (auth, student, content, chamados, ig, admin/*,
-// monitor) entram nas Fases 1-4 do plano de migração.
+// ── 1) Rotas públicas (sem Bearer) ──────────────────────────────────────────
 app.use('/api', healthRouter);
 app.use('/api', publicRouter);
+app.use('/api', authRouter); // POST /api/login (register/reset entram a seguir)
+
+// ── 2) A partir daqui exige Bearer válido ───────────────────────────────────
+app.use('/api', requireAuth);
+app.use('/api', sessionRouter); // GET /api/me
 
 // 404 de API (antes do fallback do SPA, para /api/* nunca cair no index.html).
 app.use('/api', (_req, res) => {
