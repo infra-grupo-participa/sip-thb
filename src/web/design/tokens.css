@@ -1,0 +1,39 @@
+/* Tokens de marca — porte das CSS vars do as-is (doc 08 §4A.4). */
+:root {
+  --brand: #ff6300;
+  --brand-2: #ff8a4d;
+  --brand-soft: rgba(255, 99, 0, 0.1);
+  --brand-soft-2: rgba(255, 99, 0, 0.2);
+  --brand-ink: #b04300;
+  --brand-deep: #7a2e00;
+
+  --ink: #1a1a1a;
+  --muted: #6b7280;
+  --bg: #fafafa;
+  --card: #ffffff;
+  --border: #e5e7eb;
+  --ok: #16a34a;
+  --warn: #d97706;
+  --err: #dc2626;
+
+  --radius: 14px;
+  --font: system-ui, -apple-system, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+}
+
+.theme-aurum {
+  --brand: #c8a96e;
+  --brand-2: #d4ba8a;
+  --brand-soft: rgba(200, 169, 110, 0.1);
+  --brand-soft-2: rgba(200, 169, 110, 0.2);
+  --brand-ink: #8b6914;
+  --brand-deep: #5c440a;
+}
+
+.theme-diamante {
+  --brand: #1d4ed8;
+  --brand-2: #3b82f6;
+  --brand-soft: rgba(29, 78, 216, 0.1);
+  --brand-soft-2: rgba(29, 78, 216, 0.22);
+  --brand-ink: #1e3a8a;
+  --brand-deep: #172554;
+}

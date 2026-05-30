@@ -1,0 +1,25 @@
+# deps
+node_modules/
+
+# builds
+dist/
+packages/*/dist/
+packages/web/dist/
+*.tsbuildinfo
+.vite/
+
+# env (NUNCA commitar segredos)
+.env
+.env.*
+!.env.example
+
+# logs / tmp
+*.log
+npm-debug.log*
+.DS_Store
+.cache/
+coverage/
+
+# editores
+.vscode/
+.idea/
