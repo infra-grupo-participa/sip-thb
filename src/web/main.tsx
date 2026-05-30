@@ -3,6 +3,9 @@ import ReactDOM from 'react-dom/client';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import App from './App';
 import './index.css';
+// Design system legado (tokens de marca + classes hb-*). Importado por último
+// para prevalecer nos elementos compartilhados (body, tipografia, cores).
+import './legacy/dashboard.css';
 
 const queryClient = new QueryClient();
 

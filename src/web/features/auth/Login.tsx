@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { useLogin } from '../../lib/auth';
 import { SipApiError } from '../../lib/api';
+import '../../legacy/login.css';
 
 export default function Login() {
   const navigate = useNavigate();
@@ -14,7 +15,7 @@ export default function Login() {
     e.preventDefault();
     setError(null);
     try {
-      await login.mutateAsync({ email, password });
+      await login.mutateAsync({ email: email.trim(), password });
       navigate('/', { replace: true });
     } catch (err) {
       setError(err instanceof SipApiError ? err.message : 'Falha ao entrar.');
@@ -22,44 +23,78 @@ export default function Login() {
   }
 
   return (
-    <div className="shell">
-      <form className="card" onSubmit={onSubmit}>
-        <div className="brand-bar" />
-        <h1>Entrar no SIP</h1>
-        <p className="muted">Sistema de Implementação Prática — Grupo Participa</p>
+    <div className="login-page">
+      <div className="login-shell">
+        <div className="login-hero">
+          <div className="login-logo">
+            <img src="/assets/logo-thb-mark.svg" alt="Time Holding Brasil" />
+          </div>
+          <h1>Sistema de Integração e Progressão</h1>
+          <p>Time Holding Brasil</p>
+        </div>
 
-        <label className="field">
-          <span>E-mail</span>
-          <input
-            type="email"
-            autoComplete="username"
-            value={email}
-            onChange={(e) => setEmail(e.target.value)}
-            required
-          />
-        </label>
+        <div className="hb-card hb-card-elevated login-card">
+          <h2>Entrar na plataforma</h2>
 
-        <label className="field">
-          <span>Senha</span>
-          <input
-            type="password"
-            autoComplete="current-password"
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-            required
-          />
-        </label>
+          {error && <div className="login-error">{error}</div>}
 
-        {error && <div className="alert">{error}</div>}
+          <form className="login-form" onSubmit={onSubmit}>
+            <div>
+              <label className="hb-label" htmlFor="email">E-mail</label>
+              <input
+                type="email"
+                id="email"
+                className="hb-input"
+                required
+                placeholder="seu@email.com"
+                autoComplete="email"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+              />
+            </div>
+            <div>
+              <label className="hb-label" htmlFor="password">Senha</label>
+              <input
+                type="password"
+                id="password"
+                className="hb-input"
+                required
+                placeholder="••••••••"
+                autoComplete="current-password"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+              />
+            </div>
+            <button
+              type="submit"
+              className="hb-btn hb-btn-primary hb-btn-block"
+              style={{ marginTop: 6 }}
+              disabled={login.isPending}
+            >
+              {login.isPending ? 'Entrando...' : 'Entrar'}
+            </button>
+          </form>
 
-        <button className="btn" type="submit" disabled={login.isPending}>
-          {login.isPending ? 'Entrando…' : 'Entrar'}
-        </button>
+          <div style={{ textAlign: 'center', marginTop: 14 }}>
+            <Link
+              to="/recuperar-senha"
+              style={{ fontSize: 13, color: 'var(--text-mute)', textDecoration: 'underline' }}
+            >
+              Esqueci minha senha
+            </Link>
+          </div>
+        </div>
 
-        <p className="muted center-text">
-          <Link to="/recuperar-senha">Esqueci minha senha</Link>
+        <p className="login-foot">
+          Não tem conta?{' '}
+          <a href="/cadastro" style={{ color: 'var(--brand)', fontWeight: 600 }}>
+            Criar minha conta
+          </a>
         </p>
-      </form>
+        <p className="login-foot" style={{ marginTop: 6, fontSize: 11 }}>
+          Time Holding Brasil · Ciclo de Lançamentos
+        </p>
+      </div>
     </div>
   );
 }

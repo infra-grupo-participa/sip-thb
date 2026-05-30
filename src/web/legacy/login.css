@@ -1,0 +1,77 @@
+/* Login — porte de css/index.css legado. Centralização escopada em .login-page
+   (em vez de body) para não afetar as demais telas. */
+.login-page {
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+}
+.login-shell {
+  width: 100%;
+  max-width: 420px;
+}
+.login-card {
+  padding: 32px;
+}
+.login-card h2 {
+  font-family: var(--font-display);
+  font-size: 20px;
+  font-weight: 700;
+  margin-bottom: 24px;
+}
+.login-error {
+  background: var(--red-bg);
+  border: 1px solid rgba(185, 28, 28, 0.25);
+  color: var(--red);
+  padding: 10px 14px;
+  border-radius: 10px;
+  font-size: 13px;
+  margin-bottom: 14px;
+}
+.login-error.hidden {
+  display: none;
+}
+.login-form {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+.login-foot {
+  text-align: center;
+  color: var(--text-mute);
+  font-size: 12px;
+  margin-top: 18px;
+}
+.login-hero {
+  text-align: center;
+  margin-bottom: 28px;
+}
+.login-hero h1 {
+  font-family: var(--font-display);
+  font-size: 22px;
+  font-weight: 700;
+  margin-top: 18px;
+  color: var(--text);
+}
+.login-hero p {
+  color: var(--text-sub);
+  font-size: 13px;
+  margin-top: 4px;
+}
+.login-logo {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 84px;
+  height: 84px;
+  border-radius: 50%;
+  box-shadow: 0 14px 34px rgba(255, 99, 0, 0.28);
+  overflow: hidden;
+}
+.login-logo img {
+  width: 100%;
+  height: 100%;
+  display: block;
+  object-fit: contain;
+}
