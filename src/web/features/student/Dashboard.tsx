@@ -1,8 +1,24 @@
-import { useQuery } from '@tanstack/react-query';
-import { sipApi } from '../../lib/api';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { sipApi, SipApiError } from '../../lib/api';
 import { useSession } from '../../lib/auth';
 import type { ProgressResponse, Gamification, StageItem, TaskItem } from './types';
 import './dashboard.css';
+
+function useCompleteTask() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (args: { taskId: string; completed: boolean; link?: string }) =>
+      sipApi('/tasks/' + args.taskId + '/complete', {
+        method: 'POST',
+        body: JSON.stringify({ completed: args.completed, link: args.link }),
+        throwOnError: true,
+      }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['my-progress'] });
+      qc.invalidateQueries({ queryKey: ['gamification'] });
+    },
+  });
+}
 
 function WaitingCard({ title, body }: { title: string; body: string }) {
   return (
@@ -14,17 +30,37 @@ function WaitingCard({ title, body }: { title: string; body: string }) {
   );
 }
 
-function TaskRow({ task }: { task: TaskItem }) {
+function TaskRow({
+  task,
+  canToggle,
+  busy,
+  onToggle,
+}: {
+  task: TaskItem;
+  canToggle: boolean;
+  busy: boolean;
+  onToggle: (t: TaskItem) => void;
+}) {
+  const check = (
+    <span className="task-check" aria-hidden>
+      {task.completed ? '✓' : '○'}
+    </span>
+  );
   return (
     <li className={`task ${task.completed ? 'done' : ''}`}>
-      <span className="task-check" aria-hidden>
-        {task.completed ? '✓' : '○'}
-      </span>
+      {canToggle ? (
+        <button className="task-toggle" disabled={busy} onClick={() => onToggle(task)} title="Marcar/desmarcar">
+          {check}
+        </button>
+      ) : (
+        check
+      )}
       <div className="task-body">
         <span className="task-title">{task.title}</span>
         <span className="task-tags">
           {task.owner === 'equipe' && <span className="tag tag-team">equipe</span>}
           {task.is_handoff && <span className="tag tag-handoff">handoff</span>}
+          {task.requires_link && <span className="tag">link</span>}
           {task.prazo_label && <span className="tag">{task.prazo_label}</span>}
         </span>
       </div>
@@ -32,7 +68,15 @@ function TaskRow({ task }: { task: TaskItem }) {
   );
 }
 
-function StageCard({ stage }: { stage: StageItem }) {
+function StageCard({
+  stage,
+  busyId,
+  onToggle,
+}: {
+  stage: StageItem;
+  busyId: string | null;
+  onToggle: (t: TaskItem) => void;
+}) {
   const locked = !stage.unlocked;
   const cats = Object.entries(stage.categories);
   return (
@@ -56,7 +100,13 @@ function StageCard({ stage }: { stage: StageItem }) {
                 .slice()
                 .sort((a, b) => a.order_index - b.order_index)
                 .map((t) => (
-                  <TaskRow key={t.id} task={t} />
+                  <TaskRow
+                    key={t.id}
+                    task={t}
+                    canToggle={!locked && t.interactive}
+                    busy={busyId === t.id}
+                    onToggle={onToggle}
+                  />
                 ))}
             </ul>
           </div>
@@ -78,6 +128,22 @@ export default function Dashboard() {
     queryFn: () => sipApi<Gamification>('/me/gamification', { throwOnError: true }),
     enabled: !!progress.data?.stages,
   });
+  const complete = useCompleteTask();
+
+  async function onToggle(task: TaskItem) {
+    const completing = !task.completed;
+    let link: string | undefined;
+    if (completing && task.requires_link) {
+      const entered = window.prompt('Cole o link (pasta no Drive) para esta tarefa:');
+      if (entered === null) return; // cancelou
+      link = entered.trim();
+    }
+    try {
+      await complete.mutateAsync({ taskId: task.id, completed: completing, link });
+    } catch (err) {
+      window.alert(err instanceof SipApiError ? err.message : 'Não foi possível atualizar a tarefa.');
+    }
+  }
 
   if (progress.isLoading) {
     return <div className="card center">Carregando sua trilha…</div>;
@@ -137,7 +203,7 @@ export default function Dashboard() {
 
       <div className="stages">
         {stages.map((s) => (
-          <StageCard key={s.id} stage={s} />
+          <StageCard key={s.id} stage={s} busyId={complete.isPending ? (complete.variables?.taskId ?? null) : null} onToggle={onToggle} />
         ))}
         {stages.length === 0 && <p className="muted">Nenhuma etapa disponível ainda.</p>}
       </div>

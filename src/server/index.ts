@@ -13,6 +13,7 @@ import { publicRouter } from './routes/public.js';
 import { authRouter } from './routes/auth.js';
 import { sessionRouter } from './routes/session.js';
 import { studentRouter } from './routes/student.js';
+import { studentWriteRouter } from './routes/studentWrite.js';
 
 const app = express();
 
@@ -38,6 +39,7 @@ app.use('/api', authRouter); // POST /api/login (register/reset entram a seguir)
 app.use('/api', requireAuth);
 app.use('/api', sessionRouter); // GET /api/me
 app.use('/api', studentRouter); // /api/my-progress, /api/me/* (leitura — Fase 2)
+app.use('/api', studentWriteRouter); // escritas do aluno (Fase 3)
 
 // 404 de API (antes do fallback do SPA, para /api/* nunca cair no index.html).
 app.use('/api', (_req, res) => {
