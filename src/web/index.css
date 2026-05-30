@@ -140,6 +140,18 @@ pre {
   font-size: 0.9rem;
   margin-bottom: 16px;
 }
+.alert-info {
+  background: var(--brand-soft);
+  color: var(--brand-ink);
+  border-color: var(--brand-soft-2);
+}
+.center-text {
+  text-align: center;
+  margin-top: 16px;
+}
+.center-text a {
+  color: var(--brand-ink);
+}
 
 .kv {
   display: grid;

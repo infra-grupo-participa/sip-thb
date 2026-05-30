@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, Link } from 'react-router-dom';
 import { useLogin } from '../../lib/auth';
 import { SipApiError } from '../../lib/api';
 
@@ -55,6 +55,10 @@ export default function Login() {
         <button className="btn" type="submit" disabled={login.isPending}>
           {login.isPending ? 'Entrando…' : 'Entrar'}
         </button>
+
+        <p className="muted center-text">
+          <Link to="/recuperar-senha">Esqueci minha senha</Link>
+        </p>
       </form>
     </div>
   );
