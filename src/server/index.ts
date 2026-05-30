@@ -12,6 +12,7 @@ import { healthRouter } from './routes/health.js';
 import { publicRouter } from './routes/public.js';
 import { authRouter } from './routes/auth.js';
 import { sessionRouter } from './routes/session.js';
+import { studentRouter } from './routes/student.js';
 
 const app = express();
 
@@ -36,6 +37,7 @@ app.use('/api', authRouter); // POST /api/login (register/reset entram a seguir)
 // ── 2) A partir daqui exige Bearer válido ───────────────────────────────────
 app.use('/api', requireAuth);
 app.use('/api', sessionRouter); // GET /api/me
+app.use('/api', studentRouter); // /api/my-progress, /api/me/* (leitura — Fase 2)
 
 // 404 de API (antes do fallback do SPA, para /api/* nunca cair no index.html).
 app.use('/api', (_req, res) => {

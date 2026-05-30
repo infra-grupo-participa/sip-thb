@@ -157,3 +157,24 @@ pre {
   margin: 2px 0 0;
   font-weight: 600;
 }
+
+.topbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 20px;
+  background: var(--card);
+  border-bottom: 1px solid var(--border);
+}
+.topbar strong {
+  color: var(--brand);
+  letter-spacing: 0.04em;
+}
+.link-btn {
+  background: none;
+  border: 0;
+  color: var(--muted);
+  cursor: pointer;
+  font: inherit;
+  text-decoration: underline;
+}
