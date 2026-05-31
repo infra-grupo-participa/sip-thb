@@ -1,0 +1,70 @@
+body { min-height: 100vh; display: flex; align-items: center; justify-content: center; padding: 24px; }
+.invite-shell { width: 100%; max-width: 440px; }
+.hidden { display: none !important; }
+.invite-hero { text-align: center; margin-bottom: 24px; }
+.invite-hero h1 { font-family: var(--font-display); font-size: 22px; font-weight: 700; margin-top: 18px; }
+.invite-hero p { color: var(--text-sub); font-size: 14px; margin-top: 6px; }
+.invite-hero .invite-meta { color: var(--text-mute); font-size: 12px; margin-top: 4px; }
+.invite-logo {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 78px; height: 78px;
+  border-radius: 50%;
+  box-shadow: 0 12px 28px rgba(255, 99, 0, 0.28);
+  overflow: hidden;
+}
+.invite-logo img { width: 100%; height: 100%; display: block; object-fit: contain; }
+body.theme-aurum {
+  --brand:        #C8A96E;
+  --brand-2:      #D4BA8A;
+  --brand-soft:   rgba(200,169,110,0.10);
+  --brand-soft-2: rgba(200,169,110,0.20);
+  --brand-ink:    #8B6914;
+  --brand-deep:   #5C440A;
+}
+body.theme-aurum .invite-logo {
+  box-shadow: 0 12px 28px rgba(200,169,110,0.38);
+}
+.invite-tabs { display: flex; border-bottom: 1px solid var(--border); }
+.invite-tab {
+  flex: 1; padding: 14px;
+  background: transparent; border: none;
+  font-family: inherit; font-size: 14px; font-weight: 600;
+  color: var(--text-sub); cursor: pointer;
+  border-bottom: 2px solid transparent;
+  transition: color .15s ease, border-color .15s ease, background .15s ease;
+}
+.invite-tab:hover { color: var(--text); }
+.invite-tab.is-active {
+  color: var(--brand-ink);
+  border-bottom-color: var(--brand);
+  background: var(--brand-soft);
+}
+.invite-body { padding: 24px; display: flex; flex-direction: column; gap: 14px; }
+.invite-error {
+  background: var(--red-soft); border: 1px solid rgba(185, 28, 28, 0.25);
+  color: var(--red); padding: 10px 14px; border-radius: 10px;
+  font-size: 13px;
+}
+.invite-error-screen { text-align: center; }
+.invite-error-screen h1 { font-family: var(--font-display); font-size: 20px; font-weight: 700; margin: 12px 0 6px; }
+.invite-error-screen p { color: var(--text-sub); font-size: 14px; margin-bottom: 18px; }
+.invite-error-screen .icon {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 56px; height: 56px; border-radius: 50%;
+  background: var(--red-soft); color: var(--red);
+  font-size: 24px; font-weight: 700;
+}
+.invite-link {
+  color: var(--brand); font-weight: 600; font-size: 14px;
+  text-decoration: none;
+}
+.invite-link:hover { color: var(--brand-ink); text-decoration: underline; }
+.loading-pill {
+  display: inline-flex; align-items: center; gap: 10px;
+  color: var(--text-sub); font-size: 14px;
+  padding: 12px 18px; background: var(--bg-card);
+  border: 1px solid var(--border); border-radius: 999px;
+  box-shadow: var(--shadow-sm);
+}
+.invite-owner { color: var(--brand-ink); font-weight: 700; }
+.invite-ciclo { color: var(--text); font-weight: 700; }

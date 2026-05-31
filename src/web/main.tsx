@@ -6,6 +6,11 @@ import './index.css';
 // Design system legado (tokens de marca + classes hb-*). Importado por último
 // para prevalecer nos elementos compartilhados (body, tipografia, cores).
 import './legacy/dashboard.css';
+// Estilos legados por área (admin: lista de alunos st-*, KPIs, ranking; monitor).
+// Cada página legada carregava dashboard.css + o css da sua área; aqui trazemos
+// os mesmos para que as telas portadas fiquem idênticas ao original.
+import './legacy/admin.css';
+import './legacy/monitor.css';
 
 const queryClient = new QueryClient();
 
