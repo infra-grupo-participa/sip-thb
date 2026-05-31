@@ -116,21 +116,27 @@ function TicketDetail({ report }: { report: Report }) {
           {kind.icon} {kind.label}
         </span>
       </div>
+      {report.task_title && (
+        <p className="text-xs mb-1" style={{ color: 'var(--text-mute)' }}>
+          Tarefa: <strong style={{ color: 'var(--text-sub)' }}>{report.task_title}</strong>
+        </p>
+      )}
       <p className="text-sm" style={{ whiteSpace: 'pre-wrap' }}>
         {report.message}
       </p>
       <p className="text-xs mt-2" style={{ color: 'var(--text-mute)' }}>
         {fmtDateTime(report.created_at)}
       </p>
-      {report.admin_reply && (
+      {report.admin_response && (
         <div className="mt-3 pt-3 border-t">
           <p className="text-xs font-bold" style={{ color: 'var(--brand)' }}>Resposta da equipe</p>
           <p className="text-sm mt-1" style={{ whiteSpace: 'pre-wrap' }}>
-            {report.admin_reply}
+            {report.admin_response}
           </p>
-          {!report.read_by_student && (
-            <button onClick={() => markRead.mutate()} className="text-xs mt-2 underline" style={{ color: 'var(--brand)' }}>
-              Marcar como lido
+          {report.responded_at && <p className="text-xs mt-1" style={{ color: 'var(--text-mute)' }}>{fmtDateTime(report.responded_at)}</p>}
+          {!report.read_at && (
+            <button onClick={() => markRead.mutate()} disabled={markRead.isPending} className="text-xs mt-2 underline" style={{ color: 'var(--brand)' }}>
+              {markRead.isPending ? 'Marcando…' : 'Marcar como lido'}
             </button>
           )}
         </div>

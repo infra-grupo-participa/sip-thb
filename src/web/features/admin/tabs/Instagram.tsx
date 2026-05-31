@@ -33,15 +33,21 @@ export default function Instagram() {
   const [fFlag, setFFlag] = useState('all');
   const [search, setSearch] = useState('');
 
-  const { data, refetch, isFetching } = useQuery({
+  // IG (handler ig.ts) ainda não foi portado para a stack nova. Mantemos a UI
+  // tolerante: throwOnError:false para não quebrar a aba; quando o endpoint
+  // não responder com items, exibimos estado "Em breve".
+  const { data, refetch, isFetching, isError } = useQuery({
     queryKey: ['admin-ig-cohort', win],
-    queryFn: () => sipApi<{ items: IgRow[]; banner?: string }>(`/admin/ig/cohort?window=${encodeURIComponent(win)}`, { throwOnError: true }),
+    queryFn: () => sipApi<{ items: IgRow[]; banner?: string }>(`/admin/ig/cohort?window=${encodeURIComponent(win)}`, { throwOnError: false }),
+    retry: false,
   });
 
   const collectAll = useMutation({
-    mutationFn: () => sipApi('/admin/ig/collect-all', { method: 'POST', throwOnError: true }),
+    mutationFn: () => sipApi('/admin/ig/collect-all', { method: 'POST', throwOnError: false }),
     onSuccess: () => refetch(),
   });
+
+  const unavailable = isError || (!isFetching && data != null && !Array.isArray((data as { items?: unknown }).items));
 
   const items = useMemo(() => data?.items ?? [], [data]);
   const filtered = useMemo(() => {
@@ -69,6 +75,11 @@ export default function Instagram() {
           </button>
         </div>
 
+        {unavailable && (
+          <div style={{ padding: '12px 20px', borderBottom: '1px solid var(--border)', background: 'var(--bg-muted)', fontSize: 13, color: 'var(--text-sub)' }}>
+            Monitoramento de Instagram — Em breve. A coleta de métricas ainda não está disponível nesta versão.
+          </div>
+        )}
         {data?.banner && (
           <div style={{ padding: '12px 20px', borderBottom: '1px solid var(--border)', background: 'var(--bg-muted)', fontSize: 13, color: 'var(--text-sub)' }}>
             {data.banner}
@@ -101,7 +112,9 @@ export default function Instagram() {
 
         <div style={{ padding: '4px 20px 18px' }}>
           {filtered.length === 0 ? (
-            <div style={{ padding: '40px 20px', textAlign: 'center', color: 'var(--text-mute)', fontSize: 13 }}>Nenhum aluno encontrado.</div>
+            <div style={{ padding: '40px 20px', textAlign: 'center', color: 'var(--text-mute)', fontSize: 13 }}>
+              {unavailable ? 'Em breve.' : 'Nenhum aluno encontrado.'}
+            </div>
           ) : (
             <table className="hb-table" style={{ width: '100%' }}>
               <thead>

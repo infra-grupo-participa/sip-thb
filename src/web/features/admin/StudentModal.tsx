@@ -26,11 +26,27 @@ interface FullStudent {
   monitor_name?: string | null;
 }
 interface ChecklistTask { id: string; title: string; stage_title?: string; completed: boolean }
+interface StageNode {
+  id?: string;
+  title?: string;
+  tasks?: ChecklistTask[];
+  categories?: Record<string, Array<{ id: string; title: string; completed?: boolean }>>;
+}
+interface CalendarMilestone { key?: string; label?: string; date?: string | null }
+interface CalendarPayload { anchor_date?: string | null; milestones?: CalendarMilestone[] }
 interface FullResp {
   student: FullStudent;
   completed: number;
   total: number;
   checklist?: ChecklistTask[];
+  stages?: StageNode[];
+  posts?: Array<Record<string, unknown>>;
+  traffic?: Array<Record<string, unknown>>;
+  proofs?: Array<Record<string, unknown>>;
+  reports?: Array<Record<string, unknown>>;
+  debriefing?: Record<string, unknown> | null;
+  debriefings?: Array<Record<string, unknown>>;
+  calendar?: CalendarPayload | null;
 }
 
 type ModalTab =
@@ -90,6 +106,18 @@ export default function StudentModal({ studentId, onClose }: { studentId: string
   const s = data?.student;
   const completed = data?.completed ?? 0;
   const total = data?.total ?? 0;
+  // Checklist: usa data.checklist se presente; senão deriva de stages[].categories (shape de /full).
+  const checklist: ChecklistTask[] =
+    data?.checklist && data.checklist.length > 0
+      ? data.checklist
+      : (data?.stages ?? []).flatMap((st) =>
+          Object.values(st.categories ?? {}).flat().map((t) => ({
+            id: t.id,
+            title: t.title,
+            stage_title: st.title,
+            completed: t.completed === true,
+          })),
+        );
   const pct = total > 0 ? Math.round((completed / total) * 100) : 0;
   const approvalText =
     s?.approval_status === 'pending' ? 'Pendente' : s?.approval_status === 'rejected' ? 'Rejeitado' : 'Aprovado';
@@ -209,11 +237,11 @@ export default function StudentModal({ studentId, onClose }: { studentId: string
             </div>
           ) : tab === 'checklist' ? (
             <div className="sm-pane">
-              {(data?.checklist ?? []).length === 0 ? (
+              {checklist.length === 0 ? (
                 <Placeholder text="Sem tarefas no checklist." />
               ) : (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-                  {(data?.checklist ?? []).map((t) => (
+                  {checklist.map((t) => (
                     <div key={t.id} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '8px 10px', borderBottom: '1px solid var(--border-soft)' }}>
                       <span style={{ width: 18, height: 18, borderRadius: '50%', flexShrink: 0, background: t.completed ? 'var(--green)' : 'var(--border)', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', color: '#fff', fontSize: 11 }}>
                         {t.completed ? '✓' : ''}
@@ -227,7 +255,7 @@ export default function StudentModal({ studentId, onClose }: { studentId: string
             </div>
           ) : (
             <div className="sm-pane">
-              <ModalTabContent tab={tab} studentId={studentId} />
+              <ModalTabContent tab={tab} studentId={studentId} full={data} />
             </div>
           )}
         </div>
@@ -236,42 +264,90 @@ export default function StudentModal({ studentId, onClose }: { studentId: string
   );
 }
 
-// Sub-abas que consultam endpoints próprios (dados podem ainda não existir no backend portado).
-function ModalTabContent({ tab, studentId }: { tab: ModalTab; studentId: string }) {
-  const map: Record<string, { path: string; label: string }> = {
-    planejamento: { path: '', label: 'Planejamento do ciclo' },
-    proofs: { path: `/me/tasks/${studentId}/proofs`, label: 'Comprovações' },
-    posts: { path: `/admin/students/${studentId}/posts`, label: 'Postagens do aluno' },
-    instagram: { path: `/admin/students/${studentId}/ig-metrics`, label: 'Métricas do Instagram' },
-    traffic: { path: `/admin/students/${studentId}/traffic`, label: 'Tráfego do aluno' },
-    superdebriefing: { path: `/superdebriefing?student=${studentId}`, label: 'Debriefing' },
-    calendar: { path: `/me/calendar?student=${studentId}`, label: 'Calendário' },
-    cronograma: { path: `/admin/students/${studentId}/schedule`, label: 'Cronograma' },
-    chamados: { path: `/admin/reports?student=${studentId}`, label: 'Chamados do aluno' },
-  };
-  const cfg = map[tab];
-  const { data, isLoading } = useQuery({
-    queryKey: ['admin-student-subtab', tab, studentId],
-    queryFn: () => sipApi<unknown>(cfg!.path, { throwOnError: false }),
-    enabled: !!cfg && !!cfg.path,
-  });
-
-  if (!cfg) return <Placeholder text="—" />;
+// Sub-abas: o backend /admin/students/:id/full já devolve posts, traffic, proofs,
+// reports, debriefing(s) e calendar embutidos — consumimos dali (contrato legado:
+// o modal-aluno legado também carrega tudo de /full) em vez de chamar endpoints
+// inexistentes. Instagram fica tolerante ("Em breve") até o ig.ts ser portado.
+function ModalTabContent({ tab, studentId, full }: { tab: ModalTab; studentId: string; full?: FullResp }) {
+  void studentId;
   if (tab === 'planejamento') {
     return (
       <Placeholder text="Edite ciclo, monitor, data da palestra e materiais — disponível quando o endpoint de planejamento for portado." />
     );
   }
-  if (isLoading) return <Placeholder text="Carregando…" />;
-  const arr = Array.isArray(data) ? data : (data as { items?: unknown[] })?.items;
+  if (tab === 'instagram') {
+    return <Placeholder text="Métricas do Instagram — Em breve." />;
+  }
+
+  const LABELS: Record<string, string> = {
+    proofs: 'Comprovações',
+    posts: 'Postagens do aluno',
+    traffic: 'Tráfego do aluno',
+    superdebriefing: 'Debriefing',
+    calendar: 'Calendário',
+    cronograma: 'Cronograma',
+    chamados: 'Chamados do aluno',
+  };
+
+  // Debriefing: objeto único, não lista.
+  if (tab === 'superdebriefing') {
+    const d = full?.debriefing;
+    if (!d) return <Placeholder text="Debriefing: sem dados disponíveis." />;
+    return (
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+        {Object.entries(d)
+          .filter(([, v]) => v != null && String(v).trim() !== '')
+          .map(([k, v]) => (
+            <div key={k} className="sm-row-stack">
+              <div className="sm-row-stack-label">{k}</div>
+              <div className="sm-row-stack-value">{String(v)}</div>
+            </div>
+          ))}
+      </div>
+    );
+  }
+
+  // Calendário e Cronograma: milestones do payload calendar.
+  if (tab === 'calendar' || tab === 'cronograma') {
+    const cal = full?.calendar;
+    const ms = cal?.milestones ?? [];
+    if (!cal || ms.length === 0) {
+      return <Placeholder text={`${LABELS[tab]}: cronograma ainda não definido.`} />;
+    }
+    return (
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+        {ms.map((m, i) => (
+          <div key={m.key ?? i} className="hb-card" style={{ padding: '10px 12px', display: 'flex', justifyContent: 'space-between', fontSize: 13 }}>
+            <span style={{ color: 'var(--text-sub)' }}>{m.label ?? m.key}</span>
+            <span style={{ color: 'var(--text)', fontWeight: 600 }}>{fmtDateFull(m.date ?? null)}</span>
+          </div>
+        ))}
+      </div>
+    );
+  }
+
+  const arr: Array<Record<string, unknown>> | undefined =
+    tab === 'proofs' ? full?.proofs
+    : tab === 'posts' ? full?.posts
+    : tab === 'traffic' ? full?.traffic
+    : tab === 'chamados' ? full?.reports
+    : undefined;
+
   if (!arr || arr.length === 0) {
-    return <Placeholder text={`${cfg.label}: sem dados disponíveis.`} />;
+    return <Placeholder text={`${LABELS[tab] ?? '—'}: sem dados disponíveis.`} />;
   }
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-      {(arr as Array<Record<string, unknown>>).map((it, i) => (
-        <div key={i} className="hb-card" style={{ padding: '10px 12px', fontSize: 13, color: 'var(--text-sub)' }}>
-          {String((it as { title?: string; name?: string; subject?: string }).title ?? (it as { name?: string }).name ?? (it as { subject?: string }).subject ?? JSON.stringify(it).slice(0, 120))}
+      {arr.map((it, i) => (
+        <div key={(it.id as string) ?? i} className="hb-card" style={{ padding: '10px 12px', fontSize: 13, color: 'var(--text-sub)' }}>
+          {String(
+            (it as { title?: string }).title ??
+              (it as { name?: string }).name ??
+              (it as { subject?: string }).subject ??
+              (it as { message?: string }).message ??
+              (it as { date?: string }).date ??
+              JSON.stringify(it).slice(0, 120),
+          )}
         </div>
       ))}
     </div>

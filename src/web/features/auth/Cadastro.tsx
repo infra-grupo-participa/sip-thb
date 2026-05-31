@@ -65,6 +65,8 @@ export default function Cadastro() {
   const [password2, setPassword2] = useState('');
   const [interesse, setInteresse] = useState<Interesse>('palestra');
   const [hints, setHints] = useState<Record<string, FieldHint>>({});
+  // Snapshot dos dados do passo 1 — reusado no /verify-email-code, /resend e /register.
+  const registerDataRef = useRef<RegisterData | null>(null);
 
   const [cities, setCities] = useState<string[]>([]);
   const [cityLoading, setCityLoading] = useState(false);
@@ -215,8 +217,6 @@ export default function Cadastro() {
     setStep(2);
     window.scrollTo({ top: 0, behavior: 'smooth' });
   }
-
-  const registerDataRef = useRef<RegisterData | null>(null);
 
   async function loadQuestionsAndAdvance() {
     setChecking(true);

@@ -1,15 +1,21 @@
 import { useState } from 'react';
-import { useNavigate, Link } from 'react-router-dom';
+import { useNavigate, useLocation, Link } from 'react-router-dom';
 import { useLogin } from '../../lib/auth';
 import { SipApiError } from '../../lib/api';
 import '../../legacy/login.css';
 
 export default function Login() {
   const navigate = useNavigate();
+  const location = useLocation();
   const login = useLogin();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState<string | null>(null);
+  // Aviso vindo de outra tela (ex.: após redefinir a senha em /recuperar-senha).
+  const notice =
+    location.state && typeof (location.state as { notice?: unknown }).notice === 'string'
+      ? (location.state as { notice: string }).notice
+      : null;
 
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -36,6 +42,14 @@ export default function Login() {
         <div className="hb-card hb-card-elevated login-card">
           <h2>Entrar na plataforma</h2>
 
+          {notice && !error && (
+            <div
+              className="login-error"
+              style={{ background: 'var(--green-bg, #ecfdf5)', borderColor: 'rgba(21,128,61,.25)', color: 'var(--green, #15803d)' }}
+            >
+              {notice}
+            </div>
+          )}
           {error && <div className="login-error">{error}</div>}
 
           <form className="login-form" onSubmit={onSubmit}>

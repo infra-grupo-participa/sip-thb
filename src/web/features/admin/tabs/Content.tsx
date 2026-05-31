@@ -2,8 +2,9 @@ import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { sipApi } from '../../../lib/api';
 
-interface Stage { id: string; title: string; order: number; description?: string | null }
-interface Task { id: string; stage_id: string; title: string; order: number; type?: string }
+// Shape fiel à tabela legada sip.stages / sip.tasks: stage_number, order_index, category.
+interface Stage { id: string; title: string; stage_number: number; description?: string | null; task_count?: number }
+interface Task { id: string; stage_id: string; title: string; order_index: number; category?: string }
 
 export default function Content() {
   const [ciclo, setCiclo] = useState<'aurum' | 'seminario'>('aurum');
@@ -29,7 +30,7 @@ export default function Content() {
     </button>
   );
 
-  const stageList = (stages ?? []).slice().sort((a, b) => a.order - b.order);
+  const stageList = (stages ?? []).slice().sort((a, b) => a.stage_number - b.stage_number);
 
   return (
     <div>
@@ -51,11 +52,11 @@ export default function Content() {
         ) : (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
             {stageList.map((st) => {
-              const stTasks = (tasks ?? []).filter((t) => t.stage_id === st.id).sort((a, b) => a.order - b.order);
+              const stTasks = (tasks ?? []).filter((t) => t.stage_id === st.id).sort((a, b) => a.order_index - b.order_index);
               return (
                 <div key={st.id} className="hb-card" style={{ overflow: 'hidden' }}>
                   <div style={{ padding: '14px 18px', borderBottom: '1px solid var(--border-soft)', display: 'flex', alignItems: 'center', gap: 10 }}>
-                    <span style={{ fontSize: 12, fontWeight: 800, color: 'var(--text-mute)', minWidth: 22 }}>{st.order}</span>
+                    <span style={{ fontSize: 12, fontWeight: 800, color: 'var(--text-mute)', minWidth: 22 }}>{st.stage_number}</span>
                     <div style={{ flex: 1, minWidth: 0 }}>
                       <div style={{ fontSize: 14, fontWeight: 700, color: 'var(--text)' }}>{st.title}</div>
                       {st.description && <div style={{ fontSize: 12, color: 'var(--text-mute)', marginTop: 1 }}>{st.description}</div>}
@@ -68,9 +69,9 @@ export default function Content() {
                     ) : (
                       stTasks.map((t) => (
                         <div key={t.id} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '7px 0', borderBottom: '1px solid var(--border-soft)' }}>
-                          <span style={{ fontSize: 11, color: 'var(--text-mute)', minWidth: 22 }}>{t.order}</span>
+                          <span style={{ fontSize: 11, color: 'var(--text-mute)', minWidth: 22 }}>{t.order_index + 1}</span>
                           <span style={{ flex: 1, fontSize: 13, color: 'var(--text)' }}>{t.title}</span>
-                          {t.type && <span className="hb-chip">{t.type}</span>}
+                          {t.category && <span className="hb-chip">{t.category}</span>}
                         </div>
                       ))
                     )}

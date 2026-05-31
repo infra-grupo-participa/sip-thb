@@ -3,17 +3,18 @@ import { useQuery } from '@tanstack/react-query';
 import { sipApi } from '../../../lib/api';
 import { fmtDateFull } from '../helpers';
 
+// Contrato legado: GET /admin/posts devolve array cru com student_name + link
+// (campos content/engagement/platform_label não existem na tabela posts).
 interface AdminPost {
   id: string;
-  author_name: string;
+  student_name?: string;
+  author_name?: string;
   date?: string;
   created_at?: string;
   platform: string;
-  platform_label?: string;
   format?: string;
-  content?: string;
+  link?: string | null;
   url?: string | null;
-  engagement?: number | null;
 }
 
 function defaultRange(): { from: string; to: string } {
@@ -35,16 +36,18 @@ export default function Posts() {
   });
 
   const all: AdminPost[] = Array.isArray(data) ? data : (data?.items ?? []);
+  const authorOf = (p: AdminPost) => p.student_name ?? p.author_name ?? '—';
+  const linkOf = (p: AdminPost) => p.link ?? p.url ?? null;
 
   const students = useMemo(() => {
-    const set = new Map<string, string>();
-    all.forEach((p) => set.set(p.author_name, p.author_name));
+    const set = new Set<string>();
+    all.forEach((p) => set.add(authorOf(p)));
     return Array.from(set.keys()).sort();
   }, [all]);
 
   const filtered = useMemo(() => {
     let f = all.slice();
-    if (fStudent) f = f.filter((p) => p.author_name === fStudent);
+    if (fStudent) f = f.filter((p) => authorOf(p) === fStudent);
     if (fPlatform) f = f.filter((p) => p.platform === fPlatform);
     return f;
   }, [all, fStudent, fPlatform]);
@@ -55,7 +58,7 @@ export default function Posts() {
     return m;
   }, [all]);
   const total = all.length;
-  const withLink = total > 0 ? Math.round((all.filter((p) => p.url).length / total) * 100) : 0;
+  const withLink = total > 0 ? Math.round((all.filter((p) => linkOf(p)).length / total) * 100) : 0;
   const lead = Object.entries(byPlatform).sort((a, b) => b[1] - a[1])[0];
 
   return (
@@ -118,23 +121,24 @@ export default function Posts() {
         <div style={{ overflowX: 'auto' }}>
           <table className="pg-table">
             <thead>
-              <tr><th>Aluno</th><th>Data</th><th>Plataforma</th><th>Formato</th><th>Conteúdo</th><th>Link</th><th>Engajamento</th></tr>
+              <tr><th>Aluno</th><th>Data</th><th>Plataforma</th><th>Formato</th><th>Link</th></tr>
             </thead>
             <tbody>
               {filtered.length === 0 ? (
-                <tr><td colSpan={7} style={{ padding: 32, textAlign: 'center', color: 'var(--text-mute)', fontSize: 13 }}>Nenhum post no período.</td></tr>
+                <tr><td colSpan={5} style={{ padding: 32, textAlign: 'center', color: 'var(--text-mute)', fontSize: 13 }}>Nenhum post no período.</td></tr>
               ) : (
-                filtered.map((p) => (
+                filtered.map((p) => {
+                  const link = linkOf(p);
+                  return (
                   <tr key={p.id}>
-                    <td>{p.author_name}</td>
+                    <td>{authorOf(p)}</td>
                     <td>{fmtDateFull(p.date) !== '—' ? fmtDateFull(p.date) : (p.created_at ? new Date(p.created_at).toLocaleDateString('pt-BR') : '—')}</td>
-                    <td>{p.platform_label ?? p.platform}</td>
+                    <td>{p.platform}</td>
                     <td>{p.format ?? '—'}</td>
-                    <td style={{ maxWidth: 220, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{p.content ?? '—'}</td>
-                    <td>{p.url ? <a href={p.url} target="_blank" rel="noopener noreferrer">abrir</a> : '—'}</td>
-                    <td>{p.engagement ?? '—'}</td>
+                    <td>{link ? <a href={link} target="_blank" rel="noopener noreferrer">abrir</a> : '—'}</td>
                   </tr>
-                ))
+                  );
+                })
               )}
             </tbody>
           </table>

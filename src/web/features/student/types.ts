@@ -168,14 +168,19 @@ export interface ProfileResponse {
   error?: string;
 }
 
+// Espelha a tabela `reports` do legado (handlers/student.ts). A conversa
+// admin -> aluno fica em admin_response/responded_at; a leitura pelo aluno é
+// marcada via read_at (PUT /me/reports/:id/read).
 export interface Report {
   id: string;
   kind: string;
   status: string;
   message: string;
   created_at: string;
-  admin_reply?: string | null;
-  read_by_student?: boolean;
+  task_title?: string | null;
+  admin_response?: string | null;
+  responded_at?: string | null;
+  read_at?: string | null;
 }
 
 export interface InviteResponse {
@@ -186,6 +191,20 @@ export interface InviteResponse {
 export interface DebriefingResponse {
   created_at?: string | null;
   [key: string]: unknown;
+}
+
+// GET /superdebriefing — contrato do legado (handlers/student.ts): registro do
+// ciclo atual (`existing`, com o formulário completo em payload) + valores
+// pré-preenchidos derivados de tráfego/postagens da semana (`prefilled`).
+export interface SuperDebriefingResponse {
+  existing:
+    | (Record<string, unknown> & {
+        id?: string;
+        payload?: Record<string, unknown> | null;
+        submitted_at?: string | null;
+      })
+    | null;
+  prefilled: Record<string, unknown>;
 }
 export interface DebriefingStatus {
   show_debriefing?: boolean;

@@ -157,6 +157,9 @@ function TicketDetail({ report }: { report: MonitorReport }) {
       >
         {report.message || 'Sem mensagem.'}
       </div>
+      <p style={{ marginTop: 12, fontSize: 12, color: 'var(--text-mute)' }}>
+        O histórico de mensagens e as respostas em tempo real estarão disponíveis em breve.
+      </p>
     </div>
   );
 }

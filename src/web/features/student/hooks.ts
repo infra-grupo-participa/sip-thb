@@ -13,6 +13,7 @@ import type {
   InviteResponse,
   DebriefingResponse,
   DebriefingStatus,
+  SuperDebriefingResponse,
 } from './types';
 
 export function useProgress() {
@@ -98,6 +99,16 @@ export function useDebriefingStatus() {
   return useQuery({
     queryKey: ['debriefing-status'],
     queryFn: () => sipApi<DebriefingStatus>('/debriefing-status', { throwOnError: true }),
+  });
+}
+
+// Modal do SuperDebriefing: usa o contrato do legado (/superdebriefing) que
+// devolve { existing, prefilled }. enabled controla o fetch só quando o modal abre.
+export function useSuperDebriefing(enabled = true) {
+  return useQuery({
+    queryKey: ['superdebriefing'],
+    queryFn: () => sipApi<SuperDebriefingResponse>('/superdebriefing', { throwOnError: true }),
+    enabled,
   });
 }
 

@@ -3,20 +3,33 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { sipApi } from '../../../lib/api';
 import { fmtDateFull } from '../helpers';
 
+// Contrato legado: GET /admin/clickup/handoffs devolve rows cruas de task_proofs.
+// O status do handoff é DERIVADO de sent_to_clickup + clickup_target_key (não há
+// coluna `status` de handoff; `status` aqui é a review status da prova).
 interface Handoff {
-  proof_id: string;
-  student_name: string;
+  id: string;
+  user_id?: string;
+  users?: { name?: string; email?: string } | null;
   task_title?: string;
   ciclo_type?: string;
-  status: 'sent' | 'failed' | 'skipped' | string;
-  error?: string | null;
-  created_at?: string;
-  clickup_url?: string | null;
+  submitted_at?: string;
+  sent_to_clickup?: boolean;
+  clickup_target_key?: string | null;
+  clickup_error?: string | null;
+  link?: string | null;
 }
 interface HandoffResp {
   items: Handoff[];
   summary?: { sent?: number; failed?: number; skipped?: number; total?: number };
 }
+
+type HandoffStatus = 'sent' | 'failed' | 'skipped';
+function handoffStatus(h: Handoff): HandoffStatus {
+  if (h.sent_to_clickup === true) return 'sent';
+  if (!h.clickup_target_key) return 'skipped';
+  return 'failed';
+}
+const STATUS_LABEL: Record<HandoffStatus, string> = { sent: 'Enviado', failed: 'Falhou', skipped: 'Sem ClickUp' };
 
 export default function Clickup() {
   const qc = useQueryClient();
@@ -43,7 +56,7 @@ export default function Clickup() {
 
   const items = data?.items ?? [];
   const summary = data?.summary ?? {};
-  const failedCount = summary.failed ?? items.filter((i) => i.status === 'failed').length;
+  const failedCount = summary.failed ?? items.filter((i) => handoffStatus(i) === 'failed').length;
 
   return (
     <div>
@@ -97,22 +110,26 @@ export default function Clickup() {
           <div className="hb-card" style={{ padding: 32, textAlign: 'center', color: 'var(--text-mute)', fontSize: 13 }}>Nenhum handoff neste filtro.</div>
         ) : (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-            {items.map((h) => (
-              <div key={h.proof_id} className="hb-card" style={{ padding: '12px 16px', display: 'flex', alignItems: 'center', gap: 12 }}>
+            {items.map((h) => {
+              const st = handoffStatus(h);
+              const who = h.users?.name ?? h.user_id ?? '—';
+              return (
+              <div key={h.id} className="hb-card" style={{ padding: '12px 16px', display: 'flex', alignItems: 'center', gap: 12 }}>
                 <div style={{ flex: 1, minWidth: 0 }}>
-                  <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--text)' }}>{h.student_name} · {h.task_title ?? '—'}</div>
+                  <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--text)' }}>{who} · {h.task_title ?? '—'}</div>
                   <div style={{ fontSize: 11, color: 'var(--text-mute)' }}>
-                    {h.ciclo_type ?? '—'} · {fmtDateFull(h.created_at)}
-                    {h.error ? ` · ${h.error}` : ''}
+                    {h.ciclo_type ?? '—'} · {fmtDateFull(h.submitted_at)}
+                    {h.clickup_error ? ` · ${h.clickup_error.slice(0, 120)}` : ''}
                   </div>
                 </div>
-                <span className="hb-chip" style={{ color: h.status === 'failed' ? '#b91c1c' : h.status === 'sent' ? '#16a34a' : 'var(--text-mute)' }}>{h.status}</span>
-                {h.clickup_url && <a href={h.clickup_url} target="_blank" rel="noopener noreferrer" className="hb-btn hb-btn-secondary hb-btn-sm">Abrir</a>}
-                {h.status === 'failed' && (
-                  <button onClick={() => retryOne.mutate(h.proof_id)} disabled={retryOne.isPending} className="hb-btn hb-btn-primary hb-btn-sm">Reenviar</button>
+                <span className="hb-chip" style={{ color: st === 'failed' ? '#b91c1c' : st === 'sent' ? '#16a34a' : 'var(--text-mute)' }}>{STATUS_LABEL[st]}</span>
+                {h.link && <a href={h.link} target="_blank" rel="noopener noreferrer" className="hb-btn hb-btn-secondary hb-btn-sm">Abrir</a>}
+                {st === 'failed' && (
+                  <button onClick={() => retryOne.mutate(h.id)} disabled={retryOne.isPending} className="hb-btn hb-btn-primary hb-btn-sm">Reenviar</button>
                 )}
               </div>
-            ))}
+              );
+            })}
           </div>
         )}
       </div>

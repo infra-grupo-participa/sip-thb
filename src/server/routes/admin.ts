@@ -318,6 +318,42 @@ adminRouter.get('/admin/students', async (req, res, next) => {
   try {
     const cicloFilter = typeof req.query.ciclo_type === 'string' ? req.query.ciclo_type : null;
     const statusFilter = typeof req.query.status === 'string' ? req.query.status : null;
+
+    // ── status=socios: lista de sócios com info do titular (contrato legado) ───────
+    if (statusFilter === 'socios') {
+      const { data: socios } = await sip()
+        .from('users')
+        .select('id, name, email, is_socio, socio_of, created_at, ciclo_type, monitor_id')
+        .eq('role', 'student')
+        .eq('is_socio', true)
+        .order('created_at', { ascending: false });
+      const ownerIds = [...new Set(((socios || []) as Array<Record<string, unknown>>).map((s) => s.socio_of as string).filter(Boolean))];
+      const { data: owners } = ownerIds.length > 0
+        ? await sip().from('users').select('id, name, email, ciclo_type, is_platina').in('id', ownerIds)
+        : { data: [] as Array<Record<string, unknown>> };
+      const ownerMap: Record<string, Record<string, unknown>> = {};
+      for (const o of (owners || []) as Array<Record<string, unknown>>) ownerMap[o.id as string] = o;
+      const enriched = ((socios || []) as Array<Record<string, unknown>>).map((s) => {
+        const owner = ownerMap[s.socio_of as string] || {};
+        return {
+          id: s.id, name: s.name, email: s.email,
+          is_socio: true, socio_of: s.socio_of,
+          owner_id: s.socio_of ?? null,
+          owner_name: owner.name ?? null,
+          owner_email: owner.email ?? null,
+          ciclo_type: owner.ciclo_type ?? null,
+          is_platina: owner.is_platina === true,
+          monitor_id: null, monitor_name: null, created_at: s.created_at,
+          progress_percent: 0, completed_tasks: 0, total_tasks: 0,
+          current_stage: 0, total_stages: 0,
+          has_socio: false, socio: null,
+          approval_status: 'approved', pending: false,
+          self_registered: false, data_palestra: null, padrinho: null,
+        };
+      });
+      return res.json({ items: enriched, total: enriched.length, has_more: false });
+    }
+
     let q = sip().from('users').select(ROSTER_COLS).eq('role', 'student').neq('is_socio', true);
     if (cicloFilter) q = q.eq('ciclo_type', cicloFilter);
     if (statusFilter === 'pending') q = q.is('monitor_id', null);
@@ -337,6 +373,13 @@ adminRouter.get('/admin/students', async (req, res, next) => {
     const monitorName: Record<string, string> = {};
     for (const m of monitorRows || []) monitorName[m.id as string] = m.name as string;
 
+    // has_socio: marca alunos titulares que têm um sócio vinculado (badge na lista).
+    const pageIds = list.map((s) => s.id as string);
+    const { data: socioRows } = pageIds.length > 0
+      ? await sip().from('users').select('id, socio_of').eq('is_socio', true).in('socio_of', pageIds)
+      : { data: [] as Array<Record<string, unknown>> };
+    const hasSocioSet = new Set(((socioRows || []) as Array<Record<string, unknown>>).map((r) => r.socio_of as string));
+
     const items = list.map((s) => {
       const total = tasklineTotalFor(tasklineTotals, s.ciclo_type as string, tasklineByStudent.get(s.id as string));
       const completed = completedByUser[s.id as string] || 0;
@@ -346,6 +389,7 @@ adminRouter.get('/admin/students', async (req, res, next) => {
         completed_tasks: completed,
         total_tasks: total,
         progress_percent: total > 0 ? Math.round((completed / total) * 100) : 0,
+        has_socio: hasSocioSet.has(s.id as string),
       };
     });
     return res.json({ items, total: items.length });

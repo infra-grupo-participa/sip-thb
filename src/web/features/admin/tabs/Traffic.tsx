@@ -4,13 +4,17 @@ import { sipApi } from '../../../lib/api';
 import { IconRefresh } from '../icons';
 import { cicloLabel, fmtBRL, fmtNum } from '../helpers';
 
+// Contrato legado: o backend usa `id` (não user_id) e `leads_builderall` como
+// métrica de leads (kpisOf). Mantemos aliases tolerantes.
 interface TrafficStudent {
-  user_id: string;
+  id: string;
+  user_id?: string;
   name: string;
   ciclo_type: 'aurum' | 'seminario' | null;
   is_platina?: boolean;
   spent: number;
-  leads: number;
+  leads_builderall: number;
+  leads?: number;
   cpl: number | null;
   vendas?: number;
   faturamento?: number;
@@ -18,7 +22,7 @@ interface TrafficStudent {
   ctr?: number | null;
 }
 interface TrafficData {
-  totals?: { spent?: number; leads?: number; cpl?: number; ctr?: number; cpm?: number };
+  totals?: { spent?: number; leads_builderall?: number; leads?: number; cpl?: number; ctr?: number; cpm?: number };
   students?: TrafficStudent[];
 }
 
@@ -34,13 +38,15 @@ export default function Traffic() {
   const totals = data?.totals ?? {};
   const students = useMemo(() => data?.students ?? [], [data]);
 
+  const leadsOf = (s: TrafficStudent) => s.leads ?? s.leads_builderall ?? 0;
   const ranking = useMemo(() => {
     let f = students.slice();
     if (fCiclo) f = f.filter((s) => (fCiclo === 'platina' ? s.is_platina : s.ciclo_type === fCiclo && !s.is_platina));
     f.sort((a, b) => {
-      const key = sort as keyof TrafficStudent;
-      const av = (a[key] as number) ?? 0;
-      const bv = (b[key] as number) ?? 0;
+      const valOf = (s: TrafficStudent) =>
+        sort === 'leads' ? leadsOf(s) : ((s[sort as keyof TrafficStudent] as number) ?? 0);
+      const av = valOf(a);
+      const bv = valOf(b);
       if (sort === 'cpl') return av - bv;
       return bv - av;
     });
@@ -71,7 +77,7 @@ export default function Traffic() {
 
       <div className="tx-kpi-row">
         {kpi('Investimento total', fmtBRL(totals.spent))}
-        {kpi('Leads gerados', fmtNum(totals.leads))}
+        {kpi('Leads gerados', fmtNum(totals.leads ?? totals.leads_builderall))}
         {kpi('CPL ponderado', fmtBRL(totals.cpl))}
         {kpi('CTR ponderado', totals.ctr != null ? totals.ctr.toFixed(2) + '%' : '—')}
         {kpi('CPM ponderado', fmtBRL(totals.cpm))}
@@ -112,12 +118,12 @@ export default function Traffic() {
                 <tr><td colSpan={9} style={{ padding: 32, textAlign: 'center', color: 'var(--text-mute)', fontSize: 13 }}>Sem dados de tráfego.</td></tr>
               ) : (
                 ranking.map((s, i) => (
-                  <tr key={s.user_id}>
+                  <tr key={s.id ?? s.user_id}>
                     <td>{i + 1}</td>
                     <td>{s.name}</td>
                     <td>{cicloLabel(s.ciclo_type, s.is_platina)}</td>
                     <td className="num">{fmtBRL(s.spent)}</td>
-                    <td className="num">{fmtNum(s.leads)}</td>
+                    <td className="num">{fmtNum(leadsOf(s))}</td>
                     <td className="num">{fmtBRL(s.cpl)}</td>
                     <td className="num">{s.vendas ?? '—'}</td>
                     <td className="num">{fmtBRL(s.faturamento)}</td>

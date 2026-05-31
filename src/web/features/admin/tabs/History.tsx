@@ -2,9 +2,10 @@ import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { sipApi } from '../../../lib/api';
 
-interface Ciclo { id: string; name: string; status: string }
-interface HistoryStudent { name: string; progress_percent: number; completed_tasks?: number; total_tasks?: number }
-interface HistoryData { students?: HistoryStudent[]; ciclo_name?: string }
+// Contrato legado: ciclos usam `nome` e status 'closed'; /history devolve array
+// cru com `student_name`.
+interface Ciclo { id: string; nome?: string; name?: string; status: string }
+interface HistoryStudent { student_name?: string; name?: string; progress_percent: number; completed_tasks?: number; total_tasks?: number }
 
 export default function History() {
   const { data: ciclos } = useQuery({
@@ -12,16 +13,16 @@ export default function History() {
     queryFn: () => sipApi<Ciclo[] | { items: Ciclo[] }>('/admin/ciclos', { throwOnError: true }),
   });
   const list: Ciclo[] = Array.isArray(ciclos) ? ciclos : (ciclos?.items ?? []);
-  const encerrados = list.filter((c) => c.status === 'encerrado' || c.status === 'closed');
+  const encerrados = list.filter((c) => c.status === 'closed' || c.status === 'encerrado');
 
   const [sel, setSel] = useState('');
   const { data: hist } = useQuery({
     queryKey: ['admin-ciclo-history', sel],
-    queryFn: () => sipApi<HistoryData>(`/admin/ciclos/${sel}/history`, { throwOnError: true }),
+    queryFn: () => sipApi<HistoryStudent[] | { students: HistoryStudent[] }>(`/admin/ciclos/${sel}/history`, { throwOnError: true }),
     enabled: !!sel,
   });
 
-  const students = hist?.students ?? [];
+  const students: HistoryStudent[] = Array.isArray(hist) ? hist : (hist?.students ?? []);
 
   return (
     <div className="space-y-4">
@@ -33,7 +34,7 @@ export default function History() {
           </div>
           <select value={sel} onChange={(e) => setSel(e.target.value)} className="hb-input hb-input-sm">
             <option value="">Selecione um ciclo encerrado</option>
-            {encerrados.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
+            {encerrados.map((c) => <option key={c.id} value={c.id}>{c.nome ?? c.name ?? c.id}</option>)}
           </select>
         </div>
         <div className="p-4">
@@ -47,7 +48,7 @@ export default function History() {
               <tbody>
                 {students.map((s, i) => (
                   <tr key={i}>
-                    <td>{s.name}</td>
+                    <td>{s.student_name ?? s.name ?? '—'}</td>
                     <td>{s.progress_percent}%</td>
                     <td>{s.completed_tasks ?? 0}/{s.total_tasks ?? 0}</td>
                   </tr>

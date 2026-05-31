@@ -39,7 +39,11 @@ export default function Aprovacoes() {
   });
   const reject = useMutation({
     mutationFn: (id: string) => sipApi(`/admin/students/${id}/reject`, { method: 'POST', body: JSON.stringify({}), throwOnError: true }),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ['admin-pending'] }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['admin-pending'] });
+      qc.invalidateQueries({ queryKey: ['admin-students'] });
+    },
+    onError: (e) => setErr(e instanceof SipApiError ? e.message : 'Erro ao rejeitar.'),
   });
 
   const items = data?.items ?? [];

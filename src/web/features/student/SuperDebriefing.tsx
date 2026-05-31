@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { sipApi, SipApiError } from '../../lib/api';
-import { useDebriefing } from './hooks';
+import { useSuperDebriefing } from './hooks';
 
 type SdbState = Record<string, string>;
 
@@ -73,25 +73,52 @@ function YesNo({ id, label, st, set }: { id: string; label: string; st: SdbState
   );
 }
 
+// Campos auto-preenchidos: id no formulário -> chave do objeto `prefilled`.
+// Só usamos o prefilled quando não há valor salvo (igual ao fillSdbFields do legado).
+const PREFILL_MAP: Record<string, string> = {
+  valor_investido: 'valor_investido',
+  leads_builderall: 'leads_builderall',
+  cpl: 'cpl',
+  cpm: 'cpm',
+  ctr: 'ctr',
+  taxa_carregamento: 'taxa_carregamento',
+  investimento_lembrete: 'investimento_lembrete',
+  reels: 'reels_instagram',
+  carrossel: 'carrossel_instagram',
+  raiz_fb: 'raiz_facebook',
+  shorts: 'shorts_youtube',
+  videos_yt: 'videos_youtube',
+};
+
 export default function SuperDebriefing({ onClose }: { onClose: () => void }) {
-  const existing = useDebriefing();
+  const sdb = useSuperDebriefing();
   const qc = useQueryClient();
   const [section, setSection] = useState(1);
   const [st, setSt] = useState<SdbState>({ nota: '5' });
   const [err, setErr] = useState<string | null>(null);
 
   useEffect(() => {
-    if (existing.data) {
-      const d = existing.data as Record<string, unknown>;
-      setSt((prev) => {
-        const next = { ...prev };
-        for (const [k, v] of Object.entries(d)) {
-          if (v != null && typeof v !== 'object') next[k] = String(v);
-        }
-        return next;
-      });
-    }
-  }, [existing.data]);
+    if (!sdb.data) return;
+    const existing = sdb.data.existing;
+    const prefilled = sdb.data.prefilled ?? {};
+    // O formulário completo do ciclo atual vive em existing.payload (jsonb).
+    const saved: Record<string, unknown> =
+      existing && existing.payload && typeof existing.payload === 'object' ? (existing.payload as Record<string, unknown>) : {};
+    setSt((prev) => {
+      const next = { ...prev };
+      // 1) valores salvos têm prioridade
+      for (const [k, v] of Object.entries(saved)) {
+        if (v != null && typeof v !== 'object') next[k] = String(v);
+      }
+      // 2) auto-preenche o que não foi salvo, a partir do prefilled
+      for (const [fieldId, prefKey] of Object.entries(PREFILL_MAP)) {
+        if (next[fieldId] != null && next[fieldId] !== '') continue;
+        const pv = prefilled[prefKey];
+        if (pv != null && pv !== '' && typeof pv !== 'object') next[fieldId] = String(pv);
+      }
+      return next;
+    });
+  }, [sdb.data]);
 
   const set = (id: string, v: string) => setSt((s) => ({ ...s, [id]: v }));
 
@@ -104,6 +131,7 @@ export default function SuperDebriefing({ onClose }: { onClose: () => void }) {
     mutationFn: (draft: boolean) =>
       sipApi('/superdebriefing', { method: 'POST', body: JSON.stringify({ ...st, roi, draft }), throwOnError: true }),
     onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['superdebriefing'] });
       qc.invalidateQueries({ queryKey: ['debriefing'] });
       qc.invalidateQueries({ queryKey: ['debriefing-status'] });
       qc.invalidateQueries({ queryKey: ['my-progress'] });

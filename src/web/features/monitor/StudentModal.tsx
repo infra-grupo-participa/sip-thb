@@ -35,6 +35,7 @@ interface Props {
 
 export default function StudentModal({ student, onClose }: Props) {
   const [tab, setTab] = useState<ModalTab>('checklist');
+  const [dateApproved, setDateApproved] = useState(false);
   const qc = useQueryClient();
 
   const { data, isLoading, error } = useQuery({
@@ -53,6 +54,7 @@ export default function StudentModal({ student, onClose }: Props) {
         throwOnError: true,
       }),
     onSuccess: () => {
+      setDateApproved(true);
       qc.invalidateQueries({ queryKey: ['monitor', 'students'] });
     },
   });
@@ -86,9 +88,16 @@ export default function StudentModal({ student, onClose }: Props) {
               {(s?.email ?? student.email)} · {s?.completed_tasks ?? student.completed_tasks ?? 0}/
               {s?.total_tasks ?? student.total_tasks ?? 0} tarefas concluídas
             </p>
-            {student.date_change_requested && (
+            {student.date_change_requested && !dateApproved && (
               <div className="nv-banner">
                 <span>📅 Solicitou mudança de data</span>
+                {approveDate.isError && (
+                  <span style={{ fontSize: 12, color: 'var(--red, #dc2626)' }}>
+                    {approveDate.error instanceof SipApiError
+                      ? approveDate.error.message
+                      : 'Falha ao aprovar.'}
+                  </span>
+                )}
                 <button
                   onClick={() => approveDate.mutate()}
                   disabled={approveDate.isPending}
@@ -97,6 +106,11 @@ export default function StudentModal({ student, onClose }: Props) {
                 >
                   {approveDate.isPending ? '...' : 'Aprovar'}
                 </button>
+              </div>
+            )}
+            {student.date_change_requested && dateApproved && (
+              <div className="nv-banner">
+                <span>✓ Mudança de data aprovada</span>
               </div>
             )}
           </div>
