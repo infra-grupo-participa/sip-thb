@@ -13,16 +13,23 @@ import path from 'node:path';
 import fs from 'node:fs';
 import { env, hasDb, CONFIG_ERRORS } from './env.js';
 import { requireAuth } from './middleware/requireAuth.js';
-import { adminGate } from './middleware/roleGate.js';
+import { adminGate, monitorGate } from './middleware/roleGate.js';
 import { errorHandler } from './middleware/errorHandler.js';
 import { healthRouter } from './routes/health.js';
 import { publicRouter } from './routes/public.js';
 import { authRouter } from './routes/auth.js';
+import { registerRouter } from './routes/register.js';
 import { sessionRouter } from './routes/session.js';
 import { studentRouter } from './routes/student.js';
 import { studentWriteRouter } from './routes/studentWrite.js';
 import { contentRouter } from './routes/content.js';
 import { studentExtraRouter } from './routes/studentExtra.js';
+import { chamadosRouter } from './routes/chamados.js';
+import { monitorRouter } from './routes/monitor.js';
+import { adminRaioxRouter } from './routes/adminRaiox.js';
+import { adminStudentsRouter } from './routes/adminStudents.js';
+import { adminScheduleRouter } from './routes/adminSchedule.js';
+import { adminConfigRouter } from './routes/adminConfig.js';
 import { adminRouter } from './routes/admin.js';
 
 const app = express();
@@ -43,7 +50,8 @@ app.use(express.json({ limit: '256kb' }));
 // ── 1) Rotas públicas (sem Bearer) ──────────────────────────────────────────
 app.use('/api', healthRouter);
 app.use('/api', publicRouter);
-app.use('/api', authRouter); // POST /api/login (register/reset entram a seguir)
+app.use('/api', authRouter); // POST /api/login
+app.use('/api', registerRouter); // PÚBLICO: /register, /register/pre, /verify-email-code, /resend-verification, /public/raiox-questions, /invite/:token (GET/accept)
 
 // ── 2) A partir daqui exige Bearer válido ───────────────────────────────────
 app.use('/api', requireAuth);
@@ -52,10 +60,21 @@ app.use('/api', studentRouter); // /api/my-progress, /api/me/* (leitura — Fase
 app.use('/api', studentWriteRouter); // escritas do aluno (Fase 3)
 app.use('/api', contentRouter); // posts/tráfego (Fase 3b)
 app.use('/api', studentExtraRouter); // sessão, SDB, onboarding, raiox, convite (Fase 3c)
+app.use('/api', chamadosRouter); // inbox/threads (visibilidade por papel validada nos handlers)
 
-// Gate de role admin antes do router admin (auditoria 2026-05-19).
+// Portal do monitor (role monitor|admin) — gate de prefixo em /api/monitor.
+app.use('/api/monitor', monitorGate);
+app.use('/api', monitorRouter); // GET /monitor/students, /monitor/students/:id/full, /monitor/reports
+
+// Gate de role admin antes dos routers admin (auditoria 2026-05-19).
 app.use('/api/admin', adminGate);
-app.use('/api', adminRouter); // admin: dashboard, aprovações, monitores, settings, ciclos, roster (Fase 4)
+// PRECEDÊNCIA: routers admin específicos ANTES do router genérico (admin.ts),
+// para que /admin/students/:id/* e a versão enriquecida de /admin/ciclos vençam.
+app.use('/api', adminRaioxRouter); // /admin/raiox-*, /admin/students/:id/raiox
+app.use('/api', adminStudentsRouter); // /admin/students/:id/full|posts|traffic|proofs|schedule|assignment|monitor|:id
+app.use('/api', adminScheduleRouter); // /admin/ciclo-templates, /admin/schedule-preview, /admin/students/:id/schedule
+app.use('/api', adminConfigRouter); // /admin/stages|tasks|ciclos(enriquecido)|posts|traffic|reports|clickup
+app.use('/api', adminRouter); // admin genérico: dashboard, aprovações, monitores, settings, ciclos(simples), roster (Fase 4)
 
 // 404 de API (antes do fallback do SPA, para /api/* nunca cair no index.html).
 app.use('/api', (_req, res) => {
