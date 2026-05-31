@@ -1,153 +1,21 @@
-.admin {
-  max-width: 1000px;
-  margin: 0 auto;
-  padding: 24px 20px 80px;
+/* Estilos específicos do painel admin (porte de public/css/admin.css).
+   O design system vem de legacy/dashboard.css — aqui só ficam ajustes pontuais.
+   Todas as classes estruturais (app-shell, sidenav, dh-*, st-*, sm-*, tx-*, pg-*,
+   ct-*, hb-*, modal-tabs, chip, admin-toolbar-btn, admin-filter-drawer, etc.)
+   já existem no dashboard.css importado globalmente. */
+
+/* Raio-X — alerta visual para crítico sem monitor */
+.raiox-row-urgent {
+  animation: raioxPulse 2.4s ease-in-out infinite;
 }
-.admin h1 {
-  margin: 0 0 16px;
+@keyframes raioxPulse {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(185, 28, 28, 0); }
+  50%      { box-shadow: 0 0 0 3px rgba(185, 28, 28, 0.18); }
 }
-.admin-tabs {
-  display: flex;
-  gap: 6px;
-  flex-wrap: wrap;
-  border-bottom: 1px solid var(--border);
-  margin-bottom: 20px;
-}
-.admin-tabs button {
-  background: none;
-  border: 0;
-  padding: 10px 14px;
-  cursor: pointer;
-  font: inherit;
-  font-weight: 600;
-  color: var(--muted);
-  border-bottom: 2px solid transparent;
-  margin-bottom: -1px;
-}
-.admin-tabs button.active {
-  color: var(--brand-ink);
-  border-bottom-color: var(--brand);
+@media (prefers-reduced-motion: reduce) {
+  .raiox-row-urgent { animation: none; box-shadow: 0 0 0 2px rgba(185, 28, 28, 0.18); }
 }
 
-.kpi-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
-  gap: 12px;
-  margin-bottom: 28px;
-}
-.kpi {
-  background: var(--card);
-  border: 1px solid var(--border);
-  border-radius: 12px;
-  padding: 16px;
-}
-.kpi-value {
-  font-size: 1.6rem;
-  font-weight: 800;
-  color: var(--brand-ink);
-}
-.kpi-label {
-  font-size: 0.78rem;
-  color: var(--muted);
-  margin-top: 4px;
-}
-
-.tbl {
-  width: 100%;
-  border-collapse: collapse;
-  background: var(--card);
-  border: 1px solid var(--border);
-  border-radius: 12px;
-  overflow: hidden;
-  font-size: 0.9rem;
-}
-.tbl th,
-.tbl td {
-  text-align: left;
-  padding: 10px 12px;
-  border-bottom: 1px solid var(--border);
-  vertical-align: top;
-}
-.tbl th {
-  background: var(--bg);
-  font-size: 0.75rem;
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
-  color: var(--muted);
-}
-.tbl tr:last-child td {
-  border-bottom: 0;
-}
-.nowrap {
-  white-space: nowrap;
-}
-
-.approve-form {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 12px;
-  align-items: flex-end;
-  padding: 6px 0;
-}
-.approve-form label {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-  font-size: 0.75rem;
-  color: var(--muted);
-}
-.approve-form input,
-.approve-form select {
-  padding: 8px 10px;
-  border: 1px solid var(--border);
-  border-radius: 8px;
-  font: inherit;
-}
-.approve-form .chk {
-  flex-direction: row;
-  align-items: center;
-  gap: 6px;
-}
-
-.mini-bar {
-  display: inline-block;
-  width: 80px;
-  height: 6px;
-  border-radius: 999px;
-  background: var(--brand-soft-2);
-  overflow: hidden;
-  margin-right: 6px;
-  vertical-align: middle;
-}
-.mini-bar span {
-  display: block;
-  height: 100%;
-  background: var(--brand);
-}
-
-.settings {
-  display: flex;
-  flex-direction: column;
-  gap: 14px;
-  max-width: 640px;
-}
-.setting {
-  display: flex;
-  flex-direction: column;
-  gap: 5px;
-}
-.setting span {
-  font-size: 0.82rem;
-  font-weight: 600;
-}
-.setting input,
-.setting textarea {
-  padding: 9px 11px;
-  border: 1px solid var(--border);
-  border-radius: 8px;
-  font: inherit;
-}
-.setting textarea {
-  min-height: 64px;
-  resize: vertical;
-}
+/* O AdminShell é renderizado dentro do AppLayout (que já tem topbar). Garante que
+   o app-shell ocupe a largura total disponível sem forçar 100vh duplicado. */
+.admin-shell-page .app-shell { min-height: calc(100vh - 56px); }

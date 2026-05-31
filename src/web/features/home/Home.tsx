@@ -3,6 +3,7 @@ import { sipApi } from '../../lib/api';
 import { useSession, logout } from '../../lib/auth';
 import Dashboard from '../student/Dashboard';
 import AdminShell from '../admin/AdminShell';
+import MonitorShell from '../monitor/MonitorShell';
 
 interface Health {
   ok: boolean;
@@ -48,5 +49,6 @@ export default function Home() {
   const { data: user } = useSession();
   if (user?.role === 'student') return <Dashboard />;
   if (user?.role === 'admin') return <AdminShell />;
+  if (user?.role === 'monitor') return <MonitorShell />;
   return <StaffPanel />;
 }

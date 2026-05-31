@@ -1,0 +1,389 @@
+/* Estilos específicos da área do Monitor (modal de detalhe do aluno + chamados).
+   As classes de layout (app-shell, sidenav, kpi-tile, info-card, students-list,
+   student-row-*, summary-stages, nv-progress-mini, etc.) já existem globalmente
+   em legacy/dashboard.css. Aqui replicamos apenas o que vinha de css/monitor.css. */
+
+/* Modal */
+.nv-modal-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(15, 23, 42, 0.45);
+  backdrop-filter: blur(4px);
+  z-index: 50;
+  padding: 24px 16px;
+  overflow-y: auto;
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+}
+.nv-modal {
+  background: var(--bg-card);
+  border-radius: var(--radius-lg);
+  max-width: 760px;
+  width: 100%;
+  box-shadow: var(--shadow-lg);
+  border: 1px solid var(--border);
+  margin-bottom: 24px;
+}
+.nv-modal-head {
+  padding: 22px 24px;
+  border-bottom: 1px solid var(--border);
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+}
+.nv-modal-head h2 {
+  font-family: var(--font-display);
+  font-size: 18px;
+  font-weight: 700;
+}
+.nv-modal-info {
+  color: var(--text-mute);
+  font-size: 13px;
+  margin-top: 4px;
+}
+.nv-modal-close {
+  background: transparent;
+  border: none;
+  color: var(--text-mute);
+  font-size: 28px;
+  line-height: 1;
+  cursor: pointer;
+  padding: 0;
+  flex-shrink: 0;
+  transition: color 0.15s ease;
+}
+.nv-modal-close:hover {
+  color: var(--text);
+}
+.nv-banner {
+  margin-top: 10px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  background: var(--yellow-soft);
+  border: 1px solid rgba(202, 138, 4, 0.3);
+  color: var(--yellow);
+  padding: 8px 12px;
+  border-radius: 10px;
+  font-size: 12px;
+}
+.nv-modal-tabs {
+  display: flex;
+  gap: 4px;
+  padding: 12px 20px 0;
+  background: var(--bg-subtle);
+  border-bottom: 1px solid var(--border);
+  overflow-x: auto;
+}
+.nv-modal-tab {
+  padding: 10px 14px;
+  background: transparent;
+  border: none;
+  font-family: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-sub);
+  cursor: pointer;
+  border-bottom: 2px solid transparent;
+  white-space: nowrap;
+  transition: color 0.15s ease, border-color 0.15s ease;
+}
+.nv-modal-tab:hover {
+  color: var(--text);
+}
+.nv-modal-tab.is-active {
+  color: var(--brand-ink);
+  border-bottom-color: var(--brand);
+}
+.nv-modal-body {
+  max-height: 65vh;
+  overflow-y: auto;
+}
+.nv-modal-pane {
+  padding: 22px 24px;
+}
+
+/* Checklist */
+.stage-card {
+  background: var(--bg-subtle);
+  border: 1px solid var(--border-soft);
+  border-radius: 12px;
+  overflow: hidden;
+  margin-bottom: 10px;
+}
+.stage-head {
+  padding: 14px 16px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  cursor: pointer;
+}
+.stage-head:hover {
+  background: var(--bg-muted);
+}
+.stage-title {
+  font-weight: 600;
+  font-size: 14px;
+  color: var(--text);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.stage-title.complete {
+  color: var(--green);
+}
+.stage-meta {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.stage-meta .count {
+  font-size: 12px;
+  color: var(--text-mute);
+}
+.stage-body {
+  padding: 0 16px 14px;
+  border-top: 1px solid var(--border-soft);
+}
+.cat-head {
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--text-mute);
+  padding: 12px 0 6px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+.cat-head .done {
+  color: var(--green);
+}
+.task-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 0;
+  font-size: 13px;
+}
+.task-row .marker {
+  font-size: 14px;
+  color: var(--text-mute);
+}
+.task-row .marker.is-done {
+  color: var(--green);
+}
+.task-row .text {
+  flex: 1;
+  color: var(--text);
+}
+.task-row .text.is-done {
+  text-decoration: line-through;
+  color: var(--text-mute);
+}
+.task-row .date {
+  font-size: 11px;
+  color: var(--text-mute);
+  flex-shrink: 0;
+}
+
+/* Postagens */
+.post-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 14px;
+  background: var(--bg-subtle);
+  border: 1px solid var(--border-soft);
+  border-radius: 10px;
+  margin-bottom: 8px;
+}
+.post-row .platform-icon {
+  font-size: 18px;
+}
+.post-row .post-format {
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--text);
+}
+.post-row .post-meta {
+  font-size: 12px;
+  color: var(--text-mute);
+  margin-top: 2px;
+}
+.post-row .post-link {
+  color: var(--brand);
+  font-size: 12px;
+  max-width: 160px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  text-decoration: none;
+}
+.post-row .post-link:hover {
+  text-decoration: underline;
+}
+
+/* Tráfego */
+.traffic-stats {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  gap: 10px;
+  margin-bottom: 16px;
+}
+.traffic-stat {
+  background: var(--bg-subtle);
+  border: 1px solid var(--border-soft);
+  border-radius: 10px;
+  padding: 12px;
+  text-align: center;
+}
+.traffic-stat .label {
+  font-size: 11px;
+  color: var(--text-mute);
+  margin-bottom: 4px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+.traffic-stat .value {
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--text);
+}
+
+/* SuperDebriefing */
+.sdb-row {
+  display: flex;
+  gap: 14px;
+  padding: 10px 14px;
+  background: var(--bg-subtle);
+  border: 1px solid var(--border-soft);
+  border-radius: 10px;
+  margin-bottom: 6px;
+}
+.sdb-row .label {
+  width: 140px;
+  flex-shrink: 0;
+  font-size: 12px;
+  color: var(--text-mute);
+}
+.sdb-row .value {
+  font-size: 14px;
+  color: var(--text);
+  word-break: break-word;
+}
+
+/* Chamados (inbox) — versão React de 2 colunas */
+.mon-inbox {
+  display: grid;
+  grid-template-columns: 340px 1fr;
+  gap: 16px;
+  align-items: start;
+}
+.mon-inbox-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  max-height: calc(100vh - 220px);
+  overflow-y: auto;
+}
+.mon-ticket-card {
+  border: 1px solid var(--border-soft);
+  background: var(--bg-subtle);
+  border-radius: 10px;
+  padding: 12px;
+  cursor: pointer;
+  transition: border-color 0.15s ease, background 0.15s ease;
+}
+.mon-ticket-card:hover {
+  background: var(--bg-muted);
+}
+.mon-ticket-card.is-active {
+  border-color: var(--brand);
+  background: var(--bg-card);
+}
+.mon-ticket-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 6px;
+  margin-bottom: 4px;
+}
+.mon-ticket-name {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text);
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.mon-ticket-status {
+  font-size: 10px;
+  font-weight: 700;
+  padding: 2px 7px;
+  border-radius: 20px;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+.mon-ticket-kind {
+  font-size: 11px;
+  margin-bottom: 4px;
+}
+.mon-ticket-preview {
+  font-size: 12px;
+  color: var(--text-mute);
+  overflow: hidden;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  line-height: 1.4;
+}
+.mon-ticket-date {
+  font-size: 11px;
+  color: var(--text-faint, #6b7280);
+  margin-top: 5px;
+}
+.mon-inbox-detail-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  color: var(--text-mute);
+  padding: 60px 20px;
+}
+
+@media (max-width: 860px) {
+  .mon-inbox {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* Fallbacks de classes usadas pelo legado e ausentes no dashboard.css global. */
+.hb-badge-mute {
+  background: var(--bg-muted);
+  color: var(--text-mute);
+  border-color: var(--border);
+}
+.hb-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+.hb-table th,
+.hb-table td {
+  padding: 8px 10px;
+  border-bottom: 1px solid var(--border-soft);
+  color: var(--text);
+}
+.hb-table th {
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--text-mute);
+  font-weight: 700;
+  text-align: left;
+}

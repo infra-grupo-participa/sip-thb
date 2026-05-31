@@ -41,6 +41,15 @@ export interface ProgressResponse {
   rejected?: boolean;
 }
 
+export interface Badge {
+  id: string;
+  icon: string;
+  name: string;
+  description: string;
+  earned: boolean;
+  secret?: boolean;
+}
+
 export interface Gamification {
   xp: number;
   streak: number;
@@ -52,5 +61,132 @@ export interface Gamification {
   completed_tasks: number;
   total_tasks: number;
   completed_stages: number;
-  badges: Array<{ id: string; icon: string; name: string; description: string; earned: boolean; secret?: boolean }>;
+  badges: Badge[];
+}
+
+export interface CicloInfo {
+  nome: string;
+  cor_destaque: string | null;
+  icone: string | null;
+  fase_atual: string;
+  data_inicio: string | null;
+  data_fim: string | null;
+  dias_restantes: number | null;
+  progresso_temporal: number | null;
+}
+export interface CicloResponse {
+  ciclo: CicloInfo | null;
+}
+
+export interface HistoryItem {
+  ciclo_nome: string;
+  data_inicio: string | null;
+  data_fim: string | null;
+  progress_percent: number;
+  completed_tasks: number;
+  total_tasks: number;
+  total_posts: number;
+  total_leads: number;
+  sdb_submitted: boolean;
+  sdb_nota: number | null;
+  sdb_vendas: number | null;
+  sdb_roi: number | null;
+}
+
+export interface Post {
+  id: string;
+  date: string;
+  platform: string;
+  format: string;
+  link: string | null;
+  manual_reach: number | null;
+}
+
+export interface PostsPage {
+  items: Post[];
+  total?: number;
+}
+
+export interface TrafficRow {
+  id: string;
+  date: string;
+  platform: string | null;
+  spent: number;
+  impressions?: number;
+  clicks?: number;
+  page_views?: number;
+  leads_builderall: number;
+  leads_meta?: number;
+  cpl: number | null;
+  ctr: number | null;
+  cpm?: number | null;
+}
+export interface TrafficResponse {
+  rows: TrafficRow[];
+  totals: {
+    spent?: number;
+    leads_builderall?: number;
+    cpl?: number | null;
+    impressions?: number;
+    clicks?: number;
+  } | null;
+}
+
+export interface Milestone {
+  date: string;
+  label: string;
+  offset: number;
+  phase_color: string;
+  is_anchor: boolean;
+  is_past: boolean;
+}
+export interface CalendarResponse {
+  ciclo_type?: string | null;
+  anchor_date: string | null;
+  date_changes?: number;
+  date_change_requested?: boolean;
+  milestones?: Milestone[];
+}
+
+export interface ProfileResponse {
+  name: string;
+  email: string;
+  phone: string | null;
+  city: string | null;
+  profissao: string | null;
+  instagram_handle: string | null;
+  facebook_handle: string | null;
+  youtube_handle: string | null;
+  turma_thb: string | null;
+  turma_aurum: string | null;
+  is_platina?: boolean;
+  ciclo_type: string | null;
+  monitor_name: string | null;
+  raiox_score: number | null;
+  raiox_max_score: number | null;
+  nivel: string | null;
+  error?: string;
+}
+
+export interface Report {
+  id: string;
+  kind: string;
+  status: string;
+  message: string;
+  created_at: string;
+  admin_reply?: string | null;
+  read_by_student?: boolean;
+}
+
+export interface InviteResponse {
+  socio: { name: string; email: string } | null;
+  pending_invite: { token: string; expires_at: string } | null;
+}
+
+export interface DebriefingResponse {
+  created_at?: string | null;
+  [key: string]: unknown;
+}
+export interface DebriefingStatus {
+  show_debriefing?: boolean;
 }
