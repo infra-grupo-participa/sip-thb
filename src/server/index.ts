@@ -31,6 +31,8 @@ import { adminStudentsRouter } from './routes/adminStudents.js';
 import { adminScheduleRouter } from './routes/adminSchedule.js';
 import { adminConfigRouter } from './routes/adminConfig.js';
 import { adminRouter } from './routes/admin.js';
+import { igPublicRouter, igRouter, igAdminRouter } from './routes/ig.js';
+import { registerCron } from './cron/index.js';
 
 const app = express();
 
@@ -52,6 +54,7 @@ app.use('/api', healthRouter);
 app.use('/api', publicRouter);
 app.use('/api', authRouter); // POST /api/login
 app.use('/api', registerRouter); // PÚBLICO: /register, /register/pre, /verify-email-code, /resend-verification, /public/raiox-questions, /invite/:token (GET/accept)
+app.use('/api', igPublicRouter); // PÚBLICO: GET /ig/callback (state=JWT validado no handler)
 
 // ── 2) A partir daqui exige Bearer válido ───────────────────────────────────
 app.use('/api', requireAuth);
@@ -61,6 +64,7 @@ app.use('/api', studentWriteRouter); // escritas do aluno (Fase 3)
 app.use('/api', contentRouter); // posts/tráfego (Fase 3b)
 app.use('/api', studentExtraRouter); // sessão, SDB, onboarding, raiox, convite (Fase 3c)
 app.use('/api', chamadosRouter); // inbox/threads (visibilidade por papel validada nos handlers)
+app.use('/api', igRouter); // /me/ig/connect|status|metrics|collect (autenticado)
 
 // Portal do monitor (role monitor|admin) — gate de prefixo em /api/monitor.
 app.use('/api/monitor', monitorGate);
@@ -70,6 +74,7 @@ app.use('/api', monitorRouter); // GET /monitor/students, /monitor/students/:id/
 app.use('/api/admin', adminGate);
 // PRECEDÊNCIA: routers admin específicos ANTES do router genérico (admin.ts),
 // para que /admin/students/:id/* e a versão enriquecida de /admin/ciclos vençam.
+app.use('/api', igAdminRouter); // /admin/ig/collect-all|cohort, /admin/students/:id/ig-metrics (vence o roster genérico)
 app.use('/api', adminRaioxRouter); // /admin/raiox-*, /admin/students/:id/raiox
 app.use('/api', adminStudentsRouter); // /admin/students/:id/full|posts|traffic|proofs|schedule|assignment|monitor|:id
 app.use('/api', adminScheduleRouter); // /admin/ciclo-templates, /admin/schedule-preview, /admin/students/:id/schedule
@@ -114,6 +119,12 @@ app
         CONFIG_ERRORS.length === 0 ? 'ok' : CONFIG_ERRORS.length + ' problema(s)'
       }`,
     );
+    // Agendador interno (node-cron): ig-collect, clickup-retry, cleanup. Uma vez.
+    try {
+      registerCron();
+    } catch (err) {
+      console.error('[sip] falha ao registrar cron', err);
+    }
   })
   .on('error', (err) => {
     console.error('[sip] falha ao escutar na porta', env.PORT, err);

@@ -3,7 +3,7 @@
 // por papel (student / monitor / admin) está embutida em cada handler, idêntica
 // ao legado.
 //
-// Endpoints:
+// Endpoints (inbox legado):
 //   GET    /inbox                 — lista threads (aluno: as suas; monitor: dos
 //                                    seus alunos; admin: todas) + flag `unread`
 //   POST   /inbox                 — nova thread (aluno cria a sua; admin/monitor
@@ -13,12 +13,111 @@
 //   POST   /inbox/:threadId/reply — responde thread
 //   DELETE /inbox/:threadId       — admin deleta thread
 //
-// Tabelas: message_threads, messages, message_reads, users (schema sip).
+// Endpoints (chat de chamados — ticket_messages, porte de handlers/chamados.ts):
+//   GET    /me/reports/:id/messages       — aluno: thread do seu chamado
+//   POST   /me/reports/:id/messages       — aluno: responde (bloqueado se finalizado)
+//   POST   /me/reports/:id/reopen         — aluno: solicita reabertura (status→aberto)
+//   GET    /admin/reports/:id/messages    — admin: report + thread
+//   POST   /admin/reports/:id/messages    — admin: responde (auto-promove aberto→em_atendimento)
+//   PATCH  /admin/reports/:id/status      — admin: finalizar/reabrir
+//   GET    /monitor/reports/:id/messages  — monitor (dono): report + thread
+//   POST   /monitor/reports/:id/messages  — monitor (dono): responde (auto-promove)
+//   PATCH  /monitor/reports/:id/status    — monitor (dono): só pode finalizar
+//
+// Tabelas: message_threads, messages, message_reads, reports, ticket_messages,
+// users (schema sip). Sem Realtime: o front usa polling (refetchInterval).
 import { Router } from 'express';
 import { sip } from '../db.js';
 import { ERR_ACCESS_DENIED } from '../domain/settings.js';
 
 export const chamadosRouter = Router();
+
+// ── Tipos do chat de chamados ──────────────────────────────────────────────────
+interface Attachment {
+  path: string;
+  name: string;
+  type: string;
+  size: number;
+  signed_url?: string;
+}
+
+interface TicketMessageRow {
+  id: string;
+  report_id: string;
+  sender_id: string | null;
+  sender_name: string;
+  sender_role: string;
+  body: string | null;
+  attachments: Attachment[];
+  created_at: string;
+}
+
+// Insere mensagem em ticket_messages e atualiza meta (last_message_at/by) do report.
+// supabase-js não lança em write → checamos { error }.
+async function insertTicketMessage(args: {
+  reportId: string;
+  senderId: string | null;
+  senderName: string;
+  senderRole: string;
+  body: string | null;
+  attachments: Attachment[];
+}): Promise<TicketMessageRow | null> {
+  const { data: msg, error } = await sip()
+    .from('ticket_messages')
+    .insert({
+      report_id: args.reportId,
+      sender_id: args.senderId,
+      sender_name: args.senderName,
+      sender_role: args.senderRole,
+      body: args.body || null,
+      attachments: args.attachments.length > 0 ? args.attachments : [],
+    })
+    .select('*')
+    .single();
+
+  if (error || !msg) return null;
+  const row = msg as TicketMessageRow;
+
+  await sip()
+    .from('reports')
+    .update({ last_message_at: row.created_at, last_message_by: args.senderRole })
+    .eq('id', args.reportId);
+
+  return row;
+}
+
+// Auto-promoção: aberto → em_atendimento na primeira resposta de admin/monitor.
+async function autoPromoteStatus(reportId: string): Promise<boolean> {
+  const { data: rep } = await sip().from('reports').select('status').eq('id', reportId).maybeSingle();
+  if (!rep || rep.status !== 'aberto') return false;
+  const { count } = await sip()
+    .from('ticket_messages')
+    .select('id', { count: 'exact', head: true })
+    .eq('report_id', reportId)
+    .in('sender_role', ['admin', 'monitor']);
+  if ((count ?? 0) > 0) return false;
+  await sip().from('reports').update({ status: 'em_atendimento' }).eq('id', reportId);
+  return true;
+}
+
+// Lê o nome do usuário (fallback no parâmetro).
+async function userName(userId: string, fallback: string): Promise<string> {
+  const { data: u } = await sip().from('users').select('name').eq('id', userId).maybeSingle();
+  return (u?.name as string | undefined) ?? fallback;
+}
+
+// Verifica se o monitor é o responsável pelo report (monitor_id desnormalizado).
+async function monitorOwnsReport(reportId: string, monitorId: string): Promise<boolean> {
+  const { data } = await sip().from('reports').select('monitor_id').eq('id', reportId).maybeSingle();
+  return !!data && data.monitor_id === monitorId;
+}
+
+function readMessageBody(body: unknown): { trimmed: string | null; attachments: Attachment[] } {
+  const b = (body ?? {}) as { body?: string; attachments?: Attachment[] };
+  const trimmed = b.body?.trim() || null;
+  const attachments = Array.isArray(b.attachments) ? b.attachments : [];
+  return { trimmed, attachments };
+}
 
 // ── GET /inbox — listar threads ────────────────────────────────────────────────
 // (aluno vê as suas; monitor vê dos seus alunos; admin vê todas)
@@ -216,6 +315,249 @@ chamadosRouter.delete('/inbox/:threadId', async (req, res, next) => {
   try {
     if (req.user!.role !== 'admin') return res.status(404).json({ error: 'Rota não encontrada' });
     await sip().from('message_threads').delete().eq('id', req.params.threadId);
+    return res.json({ success: true });
+  } catch (err) {
+    next(err);
+  }
+});
+
+// ════════════════════════════════════════════════════════════════════════════════
+// CHAT DE CHAMADOS (ticket_messages) — porte de handlers/chamados.ts
+//
+// Estas rotas são montadas no chamadosRouter (em /api), ANTES dos gates de
+// monitor/admin. Por isso a verificação de papel é feita INLINE em cada handler
+// (admin → role 'admin'; monitor → dono via monitor_id; aluno → owner do report).
+// ════════════════════════════════════════════════════════════════════════════════
+
+// ── GET /me/reports/:id/messages ────────────────────────────────────────────────
+chamadosRouter.get('/me/reports/:id/messages', async (req, res, next) => {
+  try {
+    const userId = req.user!.id;
+    const reportId = req.params.id;
+    const { data: rep } = await sip().from('reports').select('user_id, status').eq('id', reportId).maybeSingle();
+    if (!rep || rep.user_id !== userId) return res.status(403).json({ error: ERR_ACCESS_DENIED });
+
+    const { data: msgs } = await sip()
+      .from('ticket_messages')
+      .select('*')
+      .eq('report_id', reportId)
+      .order('created_at', { ascending: true });
+
+    return res.json({ messages: (msgs || []) as TicketMessageRow[], status: rep.status });
+  } catch (err) {
+    next(err);
+  }
+});
+
+// ── POST /me/reports/:id/messages ───────────────────────────────────────────────
+chamadosRouter.post('/me/reports/:id/messages', async (req, res, next) => {
+  try {
+    const userId = req.user!.id;
+    const reportId = req.params.id;
+    const { data: rep } = await sip().from('reports').select('user_id, status').eq('id', reportId).maybeSingle();
+    if (!rep || rep.user_id !== userId) return res.status(403).json({ error: ERR_ACCESS_DENIED });
+    if (rep.status === 'finalizado')
+      return res.status(403).json({ error: 'Chamado encerrado. Use "Solicitar reabertura" para reabrir.' });
+
+    const { trimmed, attachments } = readMessageBody(req.body);
+    if (!trimmed && attachments.length === 0) return res.status(400).json({ error: 'Mensagem não pode estar vazia.' });
+
+    const name = await userName(userId, 'Aluno');
+    const msg = await insertTicketMessage({
+      reportId,
+      senderId: userId,
+      senderName: name,
+      senderRole: 'student',
+      body: trimmed,
+      attachments,
+    });
+    if (!msg) return res.status(500).json({ error: 'Falha ao enviar mensagem.' });
+
+    return res.status(201).json({ id: msg.id, created_at: msg.created_at });
+  } catch (err) {
+    next(err);
+  }
+});
+
+// ── POST /me/reports/:id/reopen ───────────────────────────────────────────────────
+chamadosRouter.post('/me/reports/:id/reopen', async (req, res, next) => {
+  try {
+    const userId = req.user!.id;
+    const reportId = req.params.id;
+    const { data: rep } = await sip().from('reports').select('user_id, status').eq('id', reportId).maybeSingle();
+    if (!rep || rep.user_id !== userId) return res.status(403).json({ error: ERR_ACCESS_DENIED });
+    if (rep.status !== 'finalizado') return res.status(400).json({ error: 'Chamado não está finalizado.' });
+
+    const sysMsg = await insertTicketMessage({
+      reportId,
+      senderId: null,
+      senderName: 'Sistema',
+      senderRole: 'system',
+      body: '🔄 Aluno solicitou reabertura do chamado.',
+      attachments: [],
+    });
+    if (!sysMsg) return res.status(500).json({ error: 'Falha ao reabrir chamado.' });
+
+    await sip().from('reports').update({ status: 'aberto' }).eq('id', reportId);
+    return res.json({ success: true });
+  } catch (err) {
+    next(err);
+  }
+});
+
+// ── GET /admin/reports/:id/messages ───────────────────────────────────────────────
+chamadosRouter.get('/admin/reports/:id/messages', async (req, res, next) => {
+  try {
+    if (req.user!.role !== 'admin') return res.status(403).json({ error: ERR_ACCESS_DENIED });
+    const reportId = req.params.id;
+    const { data: rep } = await sip()
+      .from('reports')
+      .select('id, status, kind, user_name, user_email, created_at, last_message_at')
+      .eq('id', reportId)
+      .maybeSingle();
+    if (!rep) return res.status(404).json({ error: 'Chamado não encontrado.' });
+
+    const { data: msgs } = await sip()
+      .from('ticket_messages')
+      .select('*')
+      .eq('report_id', reportId)
+      .order('created_at', { ascending: true });
+
+    return res.json({ report: rep, messages: (msgs || []) as TicketMessageRow[] });
+  } catch (err) {
+    next(err);
+  }
+});
+
+// ── POST /admin/reports/:id/messages ──────────────────────────────────────────────
+chamadosRouter.post('/admin/reports/:id/messages', async (req, res, next) => {
+  try {
+    if (req.user!.role !== 'admin') return res.status(403).json({ error: ERR_ACCESS_DENIED });
+    const userId = req.user!.id;
+    const reportId = req.params.id;
+    const { data: rep } = await sip().from('reports').select('status').eq('id', reportId).maybeSingle();
+    if (!rep) return res.status(404).json({ error: 'Chamado não encontrado.' });
+
+    const { trimmed, attachments } = readMessageBody(req.body);
+    if (!trimmed && attachments.length === 0) return res.status(400).json({ error: 'Mensagem não pode estar vazia.' });
+
+    const promoted = await autoPromoteStatus(reportId);
+    const name = await userName(userId, 'Admin');
+    const msg = await insertTicketMessage({
+      reportId,
+      senderId: userId,
+      senderName: name,
+      senderRole: 'admin',
+      body: trimmed,
+      attachments,
+    });
+    if (!msg) return res.status(500).json({ error: 'Falha ao enviar mensagem.' });
+
+    return res.status(201).json({ id: msg.id, created_at: msg.created_at, promoted });
+  } catch (err) {
+    next(err);
+  }
+});
+
+// ── PATCH /admin/reports/:id/status ───────────────────────────────────────────────
+chamadosRouter.patch('/admin/reports/:id/status', async (req, res, next) => {
+  try {
+    if (req.user!.role !== 'admin') return res.status(403).json({ error: ERR_ACCESS_DENIED });
+    const reportId = req.params.id;
+    const { status } = (req.body ?? {}) as { status?: string };
+    const ALLOWED = ['finalizado', 'aberto'];
+    if (!status || !ALLOWED.includes(status))
+      return res.status(400).json({ error: 'Status inválido. Use "finalizado" ou "aberto".' });
+
+    const { data: rep } = await sip().from('reports').select('status').eq('id', reportId).maybeSingle();
+    if (!rep) return res.status(404).json({ error: 'Chamado não encontrado.' });
+
+    await sip().from('reports').update({ status }).eq('id', reportId);
+    return res.json({ success: true });
+  } catch (err) {
+    next(err);
+  }
+});
+
+// ── GET /monitor/reports/:id/messages ─────────────────────────────────────────────
+chamadosRouter.get('/monitor/reports/:id/messages', async (req, res, next) => {
+  try {
+    const role = req.user!.role;
+    if (role !== 'monitor' && role !== 'admin') return res.status(403).json({ error: ERR_ACCESS_DENIED });
+    const reportId = req.params.id;
+    if (role === 'monitor' && !(await monitorOwnsReport(reportId, req.user!.id)))
+      return res.status(403).json({ error: ERR_ACCESS_DENIED });
+
+    const { data: rep } = await sip()
+      .from('reports')
+      .select('id, status, kind, user_name, user_email, created_at, last_message_at')
+      .eq('id', reportId)
+      .maybeSingle();
+    if (!rep) return res.status(404).json({ error: 'Chamado não encontrado.' });
+
+    const { data: msgs } = await sip()
+      .from('ticket_messages')
+      .select('*')
+      .eq('report_id', reportId)
+      .order('created_at', { ascending: true });
+
+    return res.json({ report: rep, messages: (msgs || []) as TicketMessageRow[] });
+  } catch (err) {
+    next(err);
+  }
+});
+
+// ── POST /monitor/reports/:id/messages ────────────────────────────────────────────
+chamadosRouter.post('/monitor/reports/:id/messages', async (req, res, next) => {
+  try {
+    const role = req.user!.role;
+    if (role !== 'monitor' && role !== 'admin') return res.status(403).json({ error: ERR_ACCESS_DENIED });
+    const userId = req.user!.id;
+    const reportId = req.params.id;
+    if (role === 'monitor' && !(await monitorOwnsReport(reportId, userId)))
+      return res.status(403).json({ error: ERR_ACCESS_DENIED });
+
+    const { data: rep } = await sip().from('reports').select('status').eq('id', reportId).maybeSingle();
+    if (!rep) return res.status(404).json({ error: 'Chamado não encontrado.' });
+
+    const { trimmed, attachments } = readMessageBody(req.body);
+    if (!trimmed && attachments.length === 0) return res.status(400).json({ error: 'Mensagem não pode estar vazia.' });
+
+    const promoted = await autoPromoteStatus(reportId);
+    const name = await userName(userId, 'Monitor');
+    const msg = await insertTicketMessage({
+      reportId,
+      senderId: userId,
+      senderName: name,
+      senderRole: 'monitor',
+      body: trimmed,
+      attachments,
+    });
+    if (!msg) return res.status(500).json({ error: 'Falha ao enviar mensagem.' });
+
+    return res.status(201).json({ id: msg.id, created_at: msg.created_at, promoted });
+  } catch (err) {
+    next(err);
+  }
+});
+
+// ── PATCH /monitor/reports/:id/status ─────────────────────────────────────────────
+// Monitor só pode finalizar (não reabrir). Admin (via gate) pode usar a rota admin.
+chamadosRouter.patch('/monitor/reports/:id/status', async (req, res, next) => {
+  try {
+    const role = req.user!.role;
+    if (role !== 'monitor' && role !== 'admin') return res.status(403).json({ error: ERR_ACCESS_DENIED });
+    const reportId = req.params.id;
+    if (role === 'monitor' && !(await monitorOwnsReport(reportId, req.user!.id)))
+      return res.status(403).json({ error: ERR_ACCESS_DENIED });
+
+    const { status } = (req.body ?? {}) as { status?: string };
+    if (status !== 'finalizado') return res.status(400).json({ error: 'Monitor só pode finalizar chamados.' });
+
+    const { data: rep } = await sip().from('reports').select('status').eq('id', reportId).maybeSingle();
+    if (!rep) return res.status(404).json({ error: 'Chamado não encontrado.' });
+
+    await sip().from('reports').update({ status: 'finalizado' }).eq('id', reportId);
     return res.json({ success: true });
   } catch (err) {
     next(err);

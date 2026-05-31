@@ -1,13 +1,13 @@
-import { useState } from 'react';
-import { useMutation, useQueryClient } from '@tanstack/react-query';
+import { useEffect, useRef, useState } from 'react';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { sipApi, SipApiError } from '../../lib/api';
 import { useReports } from './hooks';
 import type { Report } from './types';
 
-const TK_STATUS: Record<string, { label: string; bg: string; color: string }> = {
-  aberto: { label: 'Aberto', bg: 'rgba(245,158,11,0.15)', color: '#f59e0b' },
-  em_atendimento: { label: 'Em atendimento', bg: 'rgba(59,130,246,0.15)', color: '#60a5fa' },
-  finalizado: { label: 'Finalizado', bg: 'rgba(74,222,128,0.15)', color: '#4ade80' },
+const TK_STATUS: Record<string, { label: string; bg: string; color: string; dot: string }> = {
+  aberto: { label: 'Aberto', bg: 'rgba(245,158,11,0.15)', color: '#f59e0b', dot: '#f59e0b' },
+  em_atendimento: { label: 'Em atendimento', bg: 'rgba(59,130,246,0.15)', color: '#60a5fa', dot: '#60a5fa' },
+  finalizado: { label: 'Finalizado', bg: 'rgba(74,222,128,0.15)', color: '#4ade80', dot: '#4ade80' },
 };
 const TK_KIND: Record<string, { label: string; icon: string; color: string }> = {
   sistema: { label: 'Problema no sistema', icon: '🐛', color: '#dc2626' },
@@ -24,12 +24,54 @@ const FILTERS: { key: string; label: string }[] = [
   { key: 'finalizado', label: 'Finalizados' },
 ];
 
+interface TicketMessage {
+  id: string;
+  report_id?: string;
+  sender_id: string | null;
+  sender_name: string;
+  sender_role: string;
+  body: string | null;
+  attachments?: { name?: string; type?: string; signed_url?: string }[];
+  created_at: string;
+}
+interface MessagesResponse {
+  messages: TicketMessage[];
+  status?: string;
+}
+
 function fmtDateTime(s: string) {
   try {
     return new Date(s).toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' });
   } catch {
     return s;
   }
+}
+function timeLabel(iso: string) {
+  const d = new Date(iso);
+  if (isNaN(d.getTime())) return '';
+  return d.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
+}
+function dateLabel(iso: string) {
+  const d = new Date(iso);
+  if (isNaN(d.getTime())) return '';
+  const n = new Date();
+  const y = new Date();
+  y.setDate(n.getDate() - 1);
+  const same = (a: Date, b: Date) => a.getDate() === b.getDate() && a.getMonth() === b.getMonth() && a.getFullYear() === b.getFullYear();
+  if (same(d, n)) return 'Hoje';
+  if (same(d, y)) return 'Ontem';
+  return d.toLocaleDateString('pt-BR');
+}
+function initials(name: string) {
+  const p = (name || '?').trim().split(/\s+/);
+  let s = (p[0] && p[0][0]) || '?';
+  if (p.length > 1 && p[p.length - 1]![0]) s += p[p.length - 1]![0];
+  return s.toUpperCase();
+}
+function avatarColor(role: string) {
+  if (role === 'admin') return '#FF6300';
+  if (role === 'monitor') return '#3b82f6';
+  return '#64748b';
 }
 
 function ReportModal({ onClose }: { onClose: () => void }) {
@@ -98,23 +140,175 @@ function ReportModal({ onClose }: { onClose: () => void }) {
   );
 }
 
-function TicketDetail({ report }: { report: Report }) {
+// Thread de mensagens do chamado (aluno) — polling a cada 15s, sem Realtime.
+function TicketThread({ report }: { report: Report }) {
   const qc = useQueryClient();
-  const markRead = useMutation({
-    mutationFn: () => sipApi(`/me/reports/${report.id}/read`, { method: 'PUT', throwOnError: true }),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ['me-reports'] }),
+  const [draft, setDraft] = useState('');
+  const [err, setErr] = useState<string | null>(null);
+  const msgsRef = useRef<HTMLDivElement>(null);
+
+  const { data, isLoading } = useQuery({
+    queryKey: ['me-report-messages', report.id],
+    queryFn: () => sipApi<MessagesResponse>(`/me/reports/${report.id}/messages`, { throwOnError: true }),
+    refetchInterval: 15_000,
   });
+
+  const messages = data?.messages ?? [];
+  const status = data?.status ?? report.status;
+  const done = status === 'finalizado';
+
+  useEffect(() => {
+    const el = msgsRef.current;
+    if (el) el.scrollTop = el.scrollHeight;
+  }, [messages.length]);
+
+  const send = useMutation({
+    mutationFn: (body: string) =>
+      sipApi(`/me/reports/${report.id}/messages`, { method: 'POST', body: JSON.stringify({ body }), throwOnError: true }),
+    onSuccess: () => {
+      setDraft('');
+      setErr(null);
+      qc.invalidateQueries({ queryKey: ['me-report-messages', report.id] });
+      qc.invalidateQueries({ queryKey: ['me-reports'] });
+    },
+    onError: (e) => setErr(e instanceof SipApiError ? e.message : 'Erro ao enviar mensagem.'),
+  });
+
+  const reopen = useMutation({
+    mutationFn: () => sipApi(`/me/reports/${report.id}/reopen`, { method: 'POST', throwOnError: true }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['me-report-messages', report.id] });
+      qc.invalidateQueries({ queryKey: ['me-reports'] });
+    },
+    onError: (e) => setErr(e instanceof SipApiError ? e.message : 'Erro ao solicitar reabertura.'),
+  });
+
+  function onSend() {
+    const body = draft.trim();
+    if (!body) return;
+    send.mutate(body);
+  }
+
+  let lastDate: string | null = null;
+  let lastKey: string | null = null;
+
+  return (
+    <div>
+      <div className="tc-msgs" ref={msgsRef} style={{ maxHeight: 360, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 10, padding: '8px 0' }}>
+        {isLoading && <div className="tc-placeholder">Carregando…</div>}
+        {!isLoading && messages.length === 0 && (
+          <div style={{ textAlign: 'center', color: 'var(--text-mute)', fontSize: 13, padding: 20 }}>Sem mensagens ainda. Escreva abaixo.</div>
+        )}
+        {messages.map((m) => {
+          if (m.sender_role === 'system') {
+            lastKey = null;
+            return (
+              <div key={m.id} className="tc-sys" style={{ display: 'flex', justifyContent: 'center' }}>
+                <span style={{ fontSize: 11, color: 'var(--text-mute)', fontStyle: 'italic', background: 'var(--bg-elevated)', border: '1px solid var(--border-soft)', padding: '3px 12px', borderRadius: 20 }}>{m.body}</span>
+              </div>
+            );
+          }
+          const right = m.sender_role === 'student';
+          const dl = dateLabel(m.created_at);
+          const sep = dl && dl !== lastDate;
+          if (sep) lastDate = dl;
+          const key = m.sender_role + '|' + m.sender_name;
+          const grouped = key === lastKey;
+          lastKey = key;
+          return (
+            <div key={m.id}>
+              {sep && (
+                <div style={{ display: 'flex', justifyContent: 'center', margin: '6px 0' }}>
+                  <span style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-mute)', background: 'var(--bg-elevated)', border: '1px solid var(--border-soft)', padding: '3px 12px', borderRadius: 20 }}>{dl}</span>
+                </div>
+              )}
+              <div style={{ display: 'flex', gap: 8, padding: '0 4px', alignItems: 'flex-end', flexDirection: right ? 'row-reverse' : 'row' }}>
+                {!right && (
+                  <div style={{ width: 30, height: 30, borderRadius: '50%', flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 11, fontWeight: 700, color: '#fff', background: grouped ? 'transparent' : avatarColor(m.sender_role), visibility: grouped ? 'hidden' : 'visible' }}>
+                    {initials(m.sender_name)}
+                  </div>
+                )}
+                <div style={{ maxWidth: '78%', display: 'flex', flexDirection: 'column', alignItems: right ? 'flex-end' : 'flex-start', minWidth: 0 }}>
+                  {!right && !grouped && <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-mute)', margin: '0 0 3px 2px' }}>{m.sender_name}</div>}
+                  <div
+                    style={{
+                      border: '1px solid',
+                      borderColor: right ? 'rgba(255,99,0,0.2)' : 'var(--border-soft)',
+                      background: right ? 'rgba(255,99,0,0.08)' : 'var(--bg-card)',
+                      borderRadius: right ? '14px 4px 14px 14px' : '4px 14px 14px 14px',
+                      padding: '8px 12px',
+                    }}
+                  >
+                    {m.body && <div style={{ fontSize: 13, color: 'var(--text)', whiteSpace: 'pre-wrap', wordBreak: 'break-word', lineHeight: 1.5 }}>{m.body}</div>}
+                    {(m.attachments ?? []).map((a, i) =>
+                      a.type && a.type.startsWith('image/') && a.signed_url ? (
+                        <img key={i} src={a.signed_url} alt={a.name ?? ''} style={{ display: 'block', maxWidth: 220, maxHeight: 180, objectFit: 'contain', borderRadius: 10, marginTop: 8, border: '1px solid var(--border-soft)' }} />
+                      ) : (
+                        <a key={i} href={a.signed_url} target="_blank" rel="noopener noreferrer" style={{ display: 'inline-flex', gap: 5, fontSize: 12, color: 'var(--text-mute)', marginTop: 6, textDecoration: 'underline' }}>
+                          📄 {a.name ?? 'Arquivo'}
+                        </a>
+                      ),
+                    )}
+                    <div style={{ fontSize: 10, color: 'var(--text-mute)', marginTop: 5, textAlign: 'right' }} title={fmtDateTime(m.created_at)}>{timeLabel(m.created_at)}</div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          );
+        })}
+      </div>
+
+      {err && <p className="text-xs text-red-400" style={{ marginTop: 6 }}>{err}</p>}
+
+      {done ? (
+        <div style={{ padding: '12px 0 4px', textAlign: 'center' }}>
+          <button onClick={() => reopen.mutate()} disabled={reopen.isPending} className="tc-btn tc-btn-amber">
+            {reopen.isPending ? 'Solicitando…' : 'Solicitar reabertura do chamado'}
+          </button>
+        </div>
+      ) : (
+        <div style={{ display: 'flex', gap: 8, alignItems: 'flex-end', marginTop: 8 }}>
+          <textarea
+            className="tc-textarea"
+            rows={2}
+            placeholder="Escreva sua mensagem…"
+            value={draft}
+            onChange={(e) => setDraft(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter' && !e.shiftKey) {
+                e.preventDefault();
+                onSend();
+              }
+            }}
+            style={{ flex: 1, resize: 'none' }}
+          />
+          <button onClick={onSend} disabled={send.isPending || !draft.trim()} className="tc-send-btn" title="Enviar (Enter)" aria-label="Enviar mensagem">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor">
+              <path d="M2 21l21-9L2 3v7l15 2-15 2v7z" />
+            </svg>
+          </button>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function TicketCard({ report }: { report: Report }) {
+  const [open, setOpen] = useState(false);
   const kind = TK_KIND[report.kind] || TK_KIND.outro;
   const st = TK_STATUS[report.status] || TK_STATUS.aberto;
   return (
     <div className="hb-card rounded-xl p-4">
-      <div className="flex items-center gap-2 mb-2">
-        <span className="text-xs font-bold px-2 py-0.5 rounded-full" style={{ background: st.bg, color: st.color }}>
-          {st.label}
+      <div className="flex items-center gap-2 mb-2 flex-wrap">
+        <span className="text-xs font-bold px-2 py-0.5 rounded-full" style={{ background: st!.bg, color: st!.color }}>
+          {st!.label}
         </span>
-        <span style={{ color: kind.color, fontSize: 12 }}>
-          {kind.icon} {kind.label}
+        <span style={{ color: kind!.color, fontSize: 12 }}>
+          {kind!.icon} {kind!.label}
         </span>
+        <button onClick={() => setOpen((o) => !o)} className="text-xs underline" style={{ marginLeft: 'auto', color: 'var(--brand)' }}>
+          {open ? 'Fechar conversa' : 'Abrir conversa'}
+        </button>
       </div>
       {report.task_title && (
         <p className="text-xs mb-1" style={{ color: 'var(--text-mute)' }}>
@@ -127,18 +321,9 @@ function TicketDetail({ report }: { report: Report }) {
       <p className="text-xs mt-2" style={{ color: 'var(--text-mute)' }}>
         {fmtDateTime(report.created_at)}
       </p>
-      {report.admin_response && (
+      {open && (
         <div className="mt-3 pt-3 border-t">
-          <p className="text-xs font-bold" style={{ color: 'var(--brand)' }}>Resposta da equipe</p>
-          <p className="text-sm mt-1" style={{ whiteSpace: 'pre-wrap' }}>
-            {report.admin_response}
-          </p>
-          {report.responded_at && <p className="text-xs mt-1" style={{ color: 'var(--text-mute)' }}>{fmtDateTime(report.responded_at)}</p>}
-          {!report.read_at && (
-            <button onClick={() => markRead.mutate()} disabled={markRead.isPending} className="text-xs mt-2 underline" style={{ color: 'var(--brand)' }}>
-              {markRead.isPending ? 'Marcando…' : 'Marcar como lido'}
-            </button>
-          )}
+          <TicketThread report={report} />
         </div>
       )}
     </div>
@@ -186,7 +371,7 @@ export default function Chamados() {
           </div>
         )}
         {filtered.map((r) => (
-          <TicketDetail key={r.id} report={r} />
+          <TicketCard key={r.id} report={r} />
         ))}
       </div>
 
