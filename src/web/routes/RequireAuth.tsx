@@ -1,6 +1,7 @@
 import type { ReactNode } from 'react';
 import { Navigate, useLocation } from 'react-router-dom';
 import { getToken, useSession } from '../lib/auth';
+import StudentFlowGate from '../features/auth/StudentFlowGate';
 
 // Guard de autenticação + fluxo (espelha shared/flow.js do legado):
 //  - sem token / sessão inválida → /login
@@ -27,6 +28,14 @@ export function RequireAuth({ children }: { children: ReactNode }) {
   // Troca de senha obrigatória: bloqueia o resto até trocar.
   if (user.must_change_password && loc.pathname !== '/trocar-senha') {
     return <Navigate to="/trocar-senha" replace />;
+  }
+
+  // Fluxo do aluno (espelha flow.js): e-mail não verificado → confirmar código;
+  // Raio-X pendente (antes da aprovação) → preencher. Gate full-screen.
+  if (user.role === 'student' && loc.pathname !== '/trocar-senha') {
+    const needsEmail = user.email_verified === false;
+    const needsRaiox = !user.raiox_submitted_at && user.approval_status === 'pending';
+    if (needsEmail || needsRaiox) return <StudentFlowGate user={user} />;
   }
 
   return <>{children}</>;
