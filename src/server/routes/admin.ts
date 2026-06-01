@@ -23,13 +23,14 @@ const ROSTER_COLS =
 adminRouter.get('/admin/dashboard', async (_req, res, next) => {
   try {
     const sevenDaysAgo = new Date(Date.now() - 7 * 86400000).toISOString();
-    const [{ data: allStudents }, { data: allProgress }, { data: recentProgress }, { data: monitors }, { data: ciclosRows }] =
+    const [{ data: allStudents }, { data: allProgress }, { data: recentProgress }, { data: monitors }, { data: ciclosRows }, { data: recentPosts }] =
       await Promise.all([
         sip().from('users').select('id, name, ciclo_type, monitor_id, is_socio').eq('role', 'student'),
         sip().from('progress').select('user_id, completed, completed_at').eq('completed', true),
         sip().from('progress').select('user_id').eq('completed', true).gte('completed_at', sevenDaysAgo),
         sip().from('users').select('id, name').eq('role', 'monitor'),
         sip().from('ciclos').select('id, status'),
+        sip().from('posts').select('id, date, platform, format, link, created_at, sip_users:user_id(name)').order('date', { ascending: false }).limit(5),
       ]);
     const students = (allStudents || []).filter((s: Record<string, unknown>) => !s.is_socio);
     const aurum = students.filter((s: Record<string, unknown>) => isAurum(s));
@@ -58,10 +59,24 @@ adminRouter.get('/admin/dashboard', async (_req, res, next) => {
       id: s.id,
       name: s.name,
       ciclo_type: s.ciclo_type,
+      monitor_id: (s.monitor_id as string) ?? null,
       monitor_name: monitors ? ((monitors.find((n: Record<string, unknown>) => n.id === s.monitor_id) as Record<string, unknown> | undefined)?.name ?? null) : null,
       completed_tasks: progressByUser[s.id as string] || 0,
     }));
     const topEngajados = [...studentsWithActivity].filter((s) => s.completed_tasks > 0).sort((a, b) => b.completed_tasks - a.completed_tasks).slice(0, 5);
+    // "Parados": com monitor atribuído, ordenados pela menor atividade (legado).
+    const topParados = [...studentsWithActivity].filter((s) => s.monitor_id).sort((a, b) => a.completed_tasks - b.completed_tasks).slice(0, 5);
+    const PLAT_LABEL: Record<string, string> = { instagram: 'Instagram', facebook: 'Facebook', youtube: 'YouTube' };
+    const postsRecentes = (recentPosts || []).slice(0, 5).map((p: Record<string, unknown>) => ({
+      id: p.id,
+      date: p.date,
+      created_at: p.created_at,
+      platform: p.platform,
+      platform_label: PLAT_LABEL[p.platform as string] || (p.platform as string),
+      format: p.format,
+      link: p.link,
+      author_name: (p.sip_users as { name?: string } | null)?.name ?? '—',
+    }));
 
     const ciclos = ciclosRows || [];
     return res.json({
@@ -69,6 +84,8 @@ adminRouter.get('/admin/dashboard', async (_req, res, next) => {
       engajamento: { engajados: engajados.length, sem_monitor: semMonitor.length, nunca_iniciou: nunca_iniciou.length },
       progresso_medio: { aurum: avgPercentFor(aurum), diamante: avgPercentFor(diamante) },
       top_engajados: topEngajados,
+      top_parados: topParados,
+      posts_recentes: postsRecentes,
       concluidos_7d: (recentProgress || []).length,
       ciclos: {
         ativos: ciclos.filter((c: Record<string, unknown>) => c.status === 'active').length,

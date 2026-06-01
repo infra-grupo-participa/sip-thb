@@ -150,7 +150,7 @@ export default function AdminShell() {
           {tab === 'settings' && <Settings />}
           {tab === 'posts' && <Posts />}
           {tab === 'traffic' && <Traffic />}
-          {tab === 'ig' && <Instagram />}
+          {tab === 'ig' && <Instagram onOpenStudent={openStudent} />}
           {tab === 'history' && <History />}
           {tab === 'clickup' && <Clickup />}
           {tab === 'reports' && <Reports />}

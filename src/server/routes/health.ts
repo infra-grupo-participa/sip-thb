@@ -59,7 +59,11 @@ function jwtFingerprint(): string {
   return createHash('sha256').update(env.SIP_JWT_SECRET).digest('hex').slice(0, 8);
 }
 
-healthRouter.get('/health', async (_req, res) => {
+healthRouter.get('/health', async (req, res) => {
+  // Diagnóstico detalhado (refs do projeto, fingerprint, pid) só em dev ou com
+  // ?debug=1 — em produção o /health expõe apenas o essencial (higiene).
+  const debug = env.NODE_ENV !== 'production' || req.query.debug === '1';
+
   const out: Record<string, unknown> = {
     ok: true,
     service: 'sip-server',
@@ -67,29 +71,33 @@ healthRouter.get('/health', async (_req, res) => {
     env: env.NODE_ENV,
     db_configured: hasDb,
     jwt_configured: hasJwt,
-    jwt_fingerprint: jwtFingerprint(),
-    supabase_key_role: supabaseKeyRole(),
-    url_ref: urlRef(),
-    key_ref: keyRef(),
-    pid: process.pid,
     config_errors: CONFIG_ERRORS,
   };
 
   if (hasDb) {
     try {
       const usersRes = await sip().from('users').select('id', { count: 'exact', head: true });
-      const ciclosRes = await sip().from('ciclos').select('id', { count: 'exact', head: true });
       out.db = usersRes.error ? 'erro' : 'ok';
-      out.db_users_visible = usersRes.count ?? 0;
-      out.db_ciclos_visible = ciclosRes.count ?? 0;
       if (usersRes.error) out.db_error = usersRes.error.message;
-      else if (ciclosRes.error) out.db_error = ciclosRes.error.message;
+      if (debug) {
+        const ciclosRes = await sip().from('ciclos').select('id', { count: 'exact', head: true });
+        out.db_users_visible = usersRes.count ?? 0;
+        out.db_ciclos_visible = ciclosRes.count ?? 0;
+      }
     } catch (e) {
       out.db = 'erro';
       out.db_error = (e as Error).message;
     }
   } else {
     out.db = 'nao-configurado';
+  }
+
+  if (debug) {
+    out.jwt_fingerprint = jwtFingerprint();
+    out.supabase_key_role = supabaseKeyRole();
+    out.url_ref = urlRef();
+    out.key_ref = keyRef();
+    out.pid = process.pid;
   }
 
   res.json(out);

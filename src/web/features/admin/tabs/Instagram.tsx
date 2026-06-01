@@ -168,7 +168,7 @@ const FLAG_OPTS: Array<[string, string]> = [
   ['ok', 'OK'],
 ];
 
-export default function Instagram() {
+export default function Instagram({ onOpenStudent }: { onOpenStudent?: (id: string) => void }) {
   const [win, setWin] = useState('7d');
   const [fCiclo, setFCiclo] = useState('all');
   const [fMonitor, setFMonitor] = useState('all');
@@ -477,6 +477,7 @@ export default function Instagram() {
                   <div
                     key={item.user_id}
                     className="ig-row"
+                    onClick={() => onOpenStudent?.(item.user_id)}
                     style={{
                       display: 'grid',
                       gridTemplateColumns: GRID,
@@ -486,6 +487,7 @@ export default function Instagram() {
                       borderLeft: `3px solid ${severityBorder(item.severity)}`,
                       alignItems: 'center',
                       transition: 'background .12s',
+                      cursor: onOpenStudent ? 'pointer' : 'default',
                     }}
                   >
                     <div style={{ minWidth: 0 }}>
